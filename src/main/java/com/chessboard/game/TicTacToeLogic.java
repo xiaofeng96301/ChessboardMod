@@ -1,0 +1,57 @@
+package com.chessboard.game;
+
+import java.util.Arrays;
+
+/**
+ * 井字棋规则：3×3 棋盘，O 先 X 后，轮流落子。
+ * 棋子模型正面圆圈反面 X，X 方渲染时翻转模型。
+ */
+public class TicTacToeLogic implements BoardGameLogic {
+
+    public static final TicTacToeLogic INSTANCE = new TicTacToeLogic();
+
+    private static final int ROWS = 3, COLS = 3;
+    static final int O = 1, X = 2;
+
+    private int nextSide = 0;
+
+    @Override public int rows() { return ROWS; }
+    @Override public int cols() { return COLS; }
+
+    @Override
+    public void initBoard(int[] p) {
+        Arrays.fill(p, 0);
+        nextSide = 0;
+    }
+
+    @Override public String pieceName(int piece) { return ""; }
+    @Override public int textColor(int piece) { return 0; }
+    @Override public int side(int piece) { return piece == O ? 0 : 1; }
+    @Override public String codePrefix() { return "jz"; }
+    @Override public float pieceScale() { return 0.55f; }
+    @Override public float pieceCenterX() { return 3.5f; }
+    @Override public float pieceCenterZ() { return 3.5f; }
+    @Override public float gridSpan() { return 9.5f; }
+    @Override public float gridOffsetX() { return 3.2f; }
+    @Override public float gridOffsetZ() { return 3.2f; }
+
+    @Override public String pieceModelPath(int piece) {
+        return "chessboard:block/tictactoe_pieces";
+    }
+
+    @Override public boolean pieceFlipX(int piece) { return piece == X; }
+    @Override public float pieceHeight() { return 1.002f / 16f; }
+
+    @Override
+    public ClickResult onClick(int[] pieces, int selRow, int selCol, int clickRow, int clickCol) {
+        if (pieces[idx(clickRow, clickCol)] != 0) return new ClickResult.None();
+        int stone = (nextSide == 0) ? O : X;
+        pieces[idx(clickRow, clickCol)] = stone;
+        nextSide ^= 1;
+        return new ClickResult.Place(clickRow, clickCol);
+    }
+
+    public void toggleSide() { nextSide ^= 1; }
+
+    public static int idx(int row, int col) { return row * COLS + col; }
+}

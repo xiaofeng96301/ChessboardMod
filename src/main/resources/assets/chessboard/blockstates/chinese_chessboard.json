@@ -1,0 +1,8 @@
+{
+  "variants": {
+    "facing=south": { "model": "chessboard:block/chinese_chessboard", "y": 0 },
+    "facing=west":  { "model": "chessboard:block/chinese_chessboard", "y": 90 },
+    "facing=north": { "model": "chessboard:block/chinese_chessboard", "y": 180 },
+    "facing=east":  { "model": "chessboard:block/chinese_chessboard", "y": 270 }
+  }
+}

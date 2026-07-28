@@ -1,0 +1,8 @@
+{
+  "itemGroup.chessboard": "棋盘",
+  "block.chessboard.chinese_chessboard": "中国象棋棋盘",
+  "block.chessboard.gomoku_board": "五子棋棋盘",
+  "block.chessboard.tictactoe_board": "井字棋棋盘",
+  "key.category.chessboard.chessboard": "棋盘",
+  "key.chessboard.open_menu": "打开棋盘菜单"
+}
