@@ -2,6 +2,7 @@
   "itemGroup.chessboard": "Chessboard",
   "block.chessboard.chinese_chessboard": "Chinese Chessboard",
   "block.chessboard.gomoku_board": "Gomoku Board",
+  "block.chessboard.chess_board": "Chess Board",
   "block.chessboard.tictactoe_board": "Tic-Tac-Toe",
   "key.category.chessboard.chessboard": "Chessboard",
   "key.chessboard.open_menu": "Open Board Menu"

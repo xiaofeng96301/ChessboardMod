@@ -32,6 +32,9 @@ public interface BoardGameLogic {
     /** 棋子是否需要绕 X 轴翻转 180°（正面→反面），井字棋 X 方用 */
     default boolean pieceFlipX(int piece) { return false; }
 
+    /** 棋子额外绕 Y 轴旋转角度（度），用于调整朝向 */
+    default float pieceYRotation(int piece) { return 0; }
+
     /** 模型中心 X 偏移（像素/16），默认 2.5 */
     default float pieceCenterX() { return 2.5f; }
     /** 模型中心 Z 偏移（像素/16），默认 2.5 */

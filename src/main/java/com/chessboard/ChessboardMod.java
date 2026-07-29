@@ -2,6 +2,7 @@ package com.chessboard;
 
 import com.chessboard.block.ChessboardBlock;
 import com.chessboard.blockentity.ChessboardBlockEntity;
+import com.chessboard.game.ChessLogic;
 import com.chessboard.game.ChineseChessLogic;
 import com.chessboard.game.GomokuLogic;
 import com.chessboard.game.TicTacToeLogic;
@@ -56,6 +57,10 @@ public class ChessboardMod {
             "tictactoe_board",
             p -> new ChessboardBlock(p, TicTacToeLogic.INSTANCE),
             p -> p.mapColor(MapColor.WOOD).strength(2f, 3f).sound(SoundType.WOOD).noOcclusion());
+    static final DeferredBlock<ChessboardBlock> CHESS_BOARD = BLOCKS.registerBlock(
+            "chess_board",
+            p -> new ChessboardBlock(p, ChessLogic.INSTANCE),
+            p -> p.mapColor(MapColor.WOOD).strength(2f, 3f).sound(SoundType.WOOD).noOcclusion());
 
     // 棋子模型方块（纯渲染用）
     public static final DeferredBlock<Block> CHESS_PIECE_MODEL = BLOCKS.registerSimpleBlock(
@@ -67,11 +72,38 @@ public class ChessboardMod {
     public static final DeferredBlock<Block> TICTACTOE_PIECE_MODEL = BLOCKS.registerSimpleBlock(
             "tictactoe_piece", p -> p.mapColor(MapColor.WOOD).noOcclusion());
 
+    // 国际象棋棋子模型方块
+    public static final DeferredBlock<Block> CHESS_PIECE_KING = BLOCKS.registerSimpleBlock(
+            "chess_piece_king", p -> p.mapColor(MapColor.WOOD).noOcclusion());
+    public static final DeferredBlock<Block> CHESS_PIECE_QUEEN = BLOCKS.registerSimpleBlock(
+            "chess_piece_queen", p -> p.mapColor(MapColor.WOOD).noOcclusion());
+    public static final DeferredBlock<Block> CHESS_PIECE_BISHOP = BLOCKS.registerSimpleBlock(
+            "chess_piece_bishop", p -> p.mapColor(MapColor.WOOD).noOcclusion());
+    public static final DeferredBlock<Block> CHESS_PIECE_KNIGHT = BLOCKS.registerSimpleBlock(
+            "chess_piece_knight", p -> p.mapColor(MapColor.WOOD).noOcclusion());
+    public static final DeferredBlock<Block> CHESS_PIECE_ROOK = BLOCKS.registerSimpleBlock(
+            "chess_piece_rook", p -> p.mapColor(MapColor.WOOD).noOcclusion());
+    public static final DeferredBlock<Block> CHESS_PIECE_PAWN = BLOCKS.registerSimpleBlock(
+            "chess_piece_pawn", p -> p.mapColor(MapColor.WOOD).noOcclusion());
+
+    public static final DeferredBlock<Block> CHESS_PIECE_KING_WHITE = BLOCKS.registerSimpleBlock(
+            "chess_piece_king_white", p -> p.mapColor(MapColor.WOOD).noOcclusion());
+    public static final DeferredBlock<Block> CHESS_PIECE_QUEEN_WHITE = BLOCKS.registerSimpleBlock(
+            "chess_piece_queen_white", p -> p.mapColor(MapColor.WOOD).noOcclusion());
+    public static final DeferredBlock<Block> CHESS_PIECE_BISHOP_WHITE = BLOCKS.registerSimpleBlock(
+            "chess_piece_bishop_white", p -> p.mapColor(MapColor.WOOD).noOcclusion());
+    public static final DeferredBlock<Block> CHESS_PIECE_KNIGHT_WHITE = BLOCKS.registerSimpleBlock(
+            "chess_piece_knight_white", p -> p.mapColor(MapColor.WOOD).noOcclusion());
+    public static final DeferredBlock<Block> CHESS_PIECE_ROOK_WHITE = BLOCKS.registerSimpleBlock(
+            "chess_piece_rook_white", p -> p.mapColor(MapColor.WOOD).noOcclusion());
+    public static final DeferredBlock<Block> CHESS_PIECE_PAWN_WHITE = BLOCKS.registerSimpleBlock(
+            "chess_piece_pawn_white", p -> p.mapColor(MapColor.WOOD).noOcclusion());
+
     // 方块实体（所有棋盘共用一种类型）
     public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<ChessboardBlockEntity>> CHESSBOARD_BE =
             BLOCK_ENTITIES.register("board_game", () -> {
                 var t = new BlockEntityType<>(ChessboardBlockEntity::new,
-                        Set.of(CHINESE_CHESSBOARD.get(), GOMOKU_BOARD.get(), TICTACTOE_BOARD.get()), true);
+                        Set.of(CHINESE_CHESSBOARD.get(), GOMOKU_BOARD.get(), TICTACTOE_BOARD.get(), CHESS_BOARD.get()), true);
                 ChessboardBlockEntity.TYPE = t;
                 return t;
             });
@@ -80,6 +112,7 @@ public class ChessboardMod {
     static final DeferredItem<BlockItem> CHINESE_CHESSBOARD_ITEM = ITEMS.registerSimpleBlockItem(CHINESE_CHESSBOARD);
     static final DeferredItem<BlockItem> GOMOKU_BOARD_ITEM = ITEMS.registerSimpleBlockItem(GOMOKU_BOARD);
     static final DeferredItem<BlockItem> TICTACTOE_BOARD_ITEM = ITEMS.registerSimpleBlockItem(TICTACTOE_BOARD);
+    static final DeferredItem<BlockItem> CHESS_BOARD_ITEM = ITEMS.registerSimpleBlockItem(CHESS_BOARD);
 
     public static final DeferredHolder<CreativeModeTab, CreativeModeTab> CHESSBOARD_TAB =
             TABS.register("chessboard_tab", () -> CreativeModeTab.builder()
@@ -87,6 +120,7 @@ public class ChessboardMod {
                     .icon(() -> CHINESE_CHESSBOARD_ITEM.get().getDefaultInstance())
                     .displayItems((params, output) -> {
                         output.accept(CHINESE_CHESSBOARD_ITEM);
+                        output.accept(CHESS_BOARD_ITEM);
                         output.accept(GOMOKU_BOARD_ITEM);
                         output.accept(TICTACTOE_BOARD_ITEM);
                     })

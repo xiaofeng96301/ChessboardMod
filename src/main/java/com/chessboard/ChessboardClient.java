@@ -40,7 +40,6 @@ public class ChessboardClient {
     @SubscribeEvent
     static void onClientSetup(final FMLClientSetupEvent event) {
         BlockEntityRenderers.register(CHESSBOARD_BE.get(), ChessboardRenderer::new);
-
         ChessboardBlock.openScreenAction =
                 pos -> Minecraft.getInstance().setScreen(new ChessboardScreen(pos));
     }

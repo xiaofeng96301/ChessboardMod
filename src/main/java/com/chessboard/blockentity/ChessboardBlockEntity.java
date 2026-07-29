@@ -4,6 +4,7 @@ import com.chessboard.block.ChessboardBlock;
 import com.chessboard.game.BoardGameLogic;
 import com.chessboard.game.BoardGameLogic.ClickResult;
 import com.chessboard.game.GomokuLogic;
+import com.chessboard.game.TicTacToeLogic;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.component.DataComponentGetter;
@@ -128,6 +129,7 @@ public class ChessboardBlockEntity extends BlockEntity {
             pieces[idx(tr, tc)] = 0;
         }
         if (g instanceof GomokuLogic gmk) gmk.toggleSide();
+        else if (g instanceof TicTacToeLogic ttt) ttt.toggleSide();
         selRow = -1; selCol = -1;
         notifyChange();
         return true;

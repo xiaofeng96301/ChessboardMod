@@ -63,6 +63,17 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
                     ? ChessboardMod.GOMOKU_PIECE_BLACK.get()
                     : ChessboardMod.GOMOKU_PIECE_WHITE.get();
             case com.chessboard.game.TicTacToeLogic ttt -> ChessboardMod.TICTACTOE_PIECE_MODEL.get();
+            case com.chessboard.game.ChessLogic cl -> {
+                boolean isWhite = cl.side(piece) == 0;
+                yield switch (com.chessboard.game.ChessLogic.type(piece)) {
+                    case com.chessboard.game.ChessLogic.KING -> isWhite ? ChessboardMod.CHESS_PIECE_KING_WHITE.get() : ChessboardMod.CHESS_PIECE_KING.get();
+                    case com.chessboard.game.ChessLogic.QUEEN -> isWhite ? ChessboardMod.CHESS_PIECE_QUEEN_WHITE.get() : ChessboardMod.CHESS_PIECE_QUEEN.get();
+                    case com.chessboard.game.ChessLogic.BISHOP -> isWhite ? ChessboardMod.CHESS_PIECE_BISHOP_WHITE.get() : ChessboardMod.CHESS_PIECE_BISHOP.get();
+                    case com.chessboard.game.ChessLogic.KNIGHT -> isWhite ? ChessboardMod.CHESS_PIECE_KNIGHT_WHITE.get() : ChessboardMod.CHESS_PIECE_KNIGHT.get();
+                    case com.chessboard.game.ChessLogic.ROOK -> isWhite ? ChessboardMod.CHESS_PIECE_ROOK_WHITE.get() : ChessboardMod.CHESS_PIECE_ROOK.get();
+                    default -> isWhite ? ChessboardMod.CHESS_PIECE_PAWN_WHITE.get() : ChessboardMod.CHESS_PIECE_PAWN.get();
+                };
+            }
             default -> ChessboardMod.CHESS_PIECE_MODEL.get();
         };
         modelResolver.update(ms, block.defaultBlockState(), BlockDisplayContext.create());
@@ -176,6 +187,8 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
             case WEST -> -90; case NORTH -> 180; case EAST -> 90; default -> 0;
         }));
         if (s.logic.pieceFlipX(piece)) ps.mulPose(Axis.XP.rotationDegrees(180));
+        float ry = s.logic.pieceYRotation(piece);
+        if (ry != 0) ps.mulPose(Axis.YP.rotationDegrees(ry));
         ps.scale(sc, sc, sc);
         ps.translate(-cx, 0, -cz);
         m.submit(ps, cc, light, overlay, 0);

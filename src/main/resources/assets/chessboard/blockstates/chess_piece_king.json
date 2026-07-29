@@ -1,0 +1,5 @@
+{
+  "variants": {
+    "": { "model": "chessboard:block/chess_wang" }
+  }
+}

@@ -89,16 +89,8 @@ public class ChessboardBlock extends BaseEntityBlock {
     @Override
     protected InteractionResult useItemOn(ItemStack stack, BlockState state, Level level, BlockPos pos,
                                           Player player, InteractionHand hand, BlockHitResult hit) {
-        // 手持物品时不拦截交互
         if (!player.getItemInHand(hand).isEmpty()) return InteractionResult.PASS;
-
-        if (level.isClientSide()) {
-            if (com.chessboard.ChessboardClient.OPEN_MENU.isDown()) {
-                openScreenAction.accept(pos);
-                return InteractionResult.CONSUME;
-            }
-            return InteractionResult.SUCCESS;
-        }
+        if (level.isClientSide()) return InteractionResult.SUCCESS;
 
         BlockEntity be = level.getBlockEntity(pos);
         if (!(be instanceof ChessboardBlockEntity board)) return InteractionResult.FAIL;
