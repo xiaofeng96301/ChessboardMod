@@ -36,7 +36,7 @@ public class ChessboardScreen extends Screen {
 
         // 导入 / 复制按钮
         addRenderableWidget(Button.builder(Component.literal("导入"), btn -> {
-                    if (minecraft != null && minecraft.player != null) {
+                    if (minecraft.player != null) {
                         String paste = codeField.getValue().isEmpty() ? currentCode : codeField.getValue();
                         minecraft.player.connection.sendCommand(
                             "chessboard import " + boardPos.getX() + " " + boardPos.getY() + " " +
@@ -66,7 +66,7 @@ public class ChessboardScreen extends Screen {
     }
 
     private String getCurrentCode() {
-        if (minecraft == null || minecraft.level == null) return "";
+        if (minecraft.level == null) return "";
         var be = minecraft.level.getBlockEntity(boardPos);
         if (be instanceof ChessboardBlockEntity board)
             return board.gameLogic().encodePieces(board.pieces());
@@ -74,7 +74,7 @@ public class ChessboardScreen extends Screen {
     }
 
     private void sendCmd(String action) {
-        if (minecraft != null && minecraft.player != null) {
+        if (minecraft.player != null) {
             minecraft.player.connection.sendCommand(
                     "chessboard " + action + " " + boardPos.getX() + " " + boardPos.getY() + " " + boardPos.getZ());
         }
@@ -82,7 +82,7 @@ public class ChessboardScreen extends Screen {
 
     @Override
     public boolean keyPressed(KeyEvent keyEvent) {
-        if (minecraft != null && minecraft.options.keyInventory.matches(keyEvent)) {
+        if (minecraft.options.keyInventory.matches(keyEvent)) {
             onClose();
             return true;
         }

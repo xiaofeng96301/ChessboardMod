@@ -40,11 +40,6 @@ public class ChessboardBlockEntity extends BlockEntity {
     private int selRow = -1, selCol = -1;
     private final Deque<int[]> history = new ArrayDeque<>();
 
-    // ── 动画字段 ──
-    long selectTick, unselectTick, moveTick;
-    int moveFromRow = -1, moveFromCol = -1, moveToRow = -1, moveToCol = -1;
-    int unselRow = -1, unselCol = -1;
-
     public ChessboardBlockEntity(BlockPos pos, BlockState state) {
         super(TYPE, pos, state);
     }
@@ -72,46 +67,25 @@ public class ChessboardBlockEntity extends BlockEntity {
     public int[] pieces() { gameLogic(); return pieces; }
     public int selRow() { return selRow; }
     public int selCol() { return selCol; }
-    public boolean hasSelection() { return selRow >= 0; }
-
-    public long selectTick() { return selectTick; }
-    public long unselectTick() { return unselectTick; }
-    public long moveTick() { return moveTick; }
-    public int moveFromRow() { return moveFromRow; }
-    public int moveFromCol() { return moveFromCol; }
-    public int moveToRow() { return moveToRow; }
-    public int moveToCol() { return moveToCol; }
-    public int unselRow() { return unselRow; }
-    public int unselCol() { return unselCol; }
-
     // ── 点击 ──
 
     public void handleClick(int clickRow, int clickCol) {
         BoardGameLogic g = gameLogic();
-        long tick = level != null ? level.getGameTime() : 0;
         int captured = pieces[idx(clickRow, clickCol)];
 
         ClickResult r = g.onClick(pieces, selRow, selCol, clickRow, clickCol);
         switch (r) {
-            case ClickResult.Select(int rw, int cl) -> { selRow = rw; selCol = cl; selectTick = tick; }
+            case ClickResult.Select(int rw, int cl) -> { selRow = rw; selCol = cl; }
             case ClickResult.Move(int fr, int fc, int tr, int tc) -> {
                 history.push(new int[]{fr, fc, tr, tc, captured});
-                moveFromRow = fr; moveFromCol = fc; moveToRow = tr; moveToCol = tc; moveTick = tick;
                 selRow = -1; selCol = -1;
             }
             case ClickResult.Place(int rw, int cl) -> {
                 history.push(new int[]{-1, -1, rw, cl, 0});
-                moveFromRow = -1; moveFromCol = -1; moveToRow = rw; moveToCol = cl; moveTick = tick;
             }
             case ClickResult.None() -> {}
             case ClickResult.Reset() -> resetBoard();
         }
-        notifyChange();
-    }
-
-    public void clearSelection() {
-        if (selRow >= 0) { unselRow = selRow; unselCol = selCol; unselectTick = level != null ? level.getGameTime() : 0; }
-        selRow = -1; selCol = -1;
         notifyChange();
     }
 
@@ -154,6 +128,26 @@ public class ChessboardBlockEntity extends BlockEntity {
         if (level != null) level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
     }
 
+    // ── 历史扁平化工具 ──
+
+    private int[] flattenHistory() {
+        if (history.isEmpty()) return null;
+        int[] flat = new int[history.size() * 5];
+        int i = 0;
+        for (int[] rec : history) { System.arraycopy(rec, 0, flat, i * 5, 5); i++; }
+        return flat;
+    }
+
+    private void restoreHistory(int[] flat) {
+        history.clear();
+        if (flat != null) {
+            for (int i = flat.length / 5 - 1; i >= 0; i--) {
+                int off = i * 5;
+                history.push(new int[]{flat[off], flat[off + 1], flat[off + 2], flat[off + 3], flat[off + 4]});
+            }
+        }
+    }
+
     // ── 持久化 ──
 
     @Override
@@ -163,15 +157,9 @@ public class ChessboardBlockEntity extends BlockEntity {
         out.putIntArray("pieces", pieces);
         out.putInt("selRow", selRow);
         out.putInt("selCol", selCol);
-        // 保存走棋历史
         int size = history.size();
         out.putInt("histSize", size);
-        if (size > 0) {
-            int[] flat = new int[size * 5];
-            int i = 0;
-            for (int[] rec : history) { System.arraycopy(rec, 0, flat, i * 5, 5); i++; }
-            out.putIntArray("history", flat);
-        }
+        if (size > 0) out.putIntArray("history", flattenHistory());
     }
 
     @Override
@@ -183,18 +171,8 @@ public class ChessboardBlockEntity extends BlockEntity {
         else gameLogic().initBoard(pieces);
         selRow = in.getIntOr("selRow", -1);
         selCol = in.getIntOr("selCol", -1);
-        // 恢复走棋历史
-        history.clear();
         int histSize = in.getIntOr("histSize", 0);
-        if (histSize > 0) {
-            int[] flat = in.getIntArray("history").orElse(null);
-            if (flat != null && flat.length >= histSize * 5) {
-                for (int i = histSize - 1; i >= 0; i--) {
-                    int off = i * 5;
-                    history.push(new int[]{flat[off], flat[off+1], flat[off+2], flat[off+3], flat[off+4]});
-                }
-            }
-        }
+        if (histSize > 0) restoreHistory(in.getIntArray("history").orElse(null));
     }
 
     @Override
@@ -226,16 +204,15 @@ public class ChessboardBlockEntity extends BlockEntity {
         if (level != null && level.isClientSide()) handleUpdateTag(in);
     }
 
-    // ── 数据组件：潜影盒同款 NBT 保存/恢复 ──
+    // ── 数据组件 ──
 
     @Override
     protected void collectImplicitComponents(DataComponentMap.Builder builder) {
         super.collectImplicitComponents(builder);
         gameLogic();
-        // 只在有棋局进度时才写入组件，避免全新/重置后的棋盘不可堆叠
         int[] init = new int[pieces.length];
         gameLogic().initBoard(init);
-        boolean hasProgress = !java.util.Arrays.equals(pieces, init) || !history.isEmpty();
+        boolean hasProgress = !Arrays.equals(pieces, init) || !history.isEmpty();
         if (!hasProgress) return;
 
         CompoundTag tag = new CompoundTag();
@@ -243,12 +220,8 @@ public class ChessboardBlockEntity extends BlockEntity {
         tag.putInt("selRow", selRow);
         tag.putInt("selCol", selCol);
         tag.putInt("histSize", history.size());
-        if (!history.isEmpty()) {
-            int[] flat = new int[history.size() * 5];
-            int i = 0;
-            for (int[] rec : history) { System.arraycopy(rec, 0, flat, i * 5, 5); i++; }
-            tag.putIntArray("history", flat);
-        }
+        int[] flat = flattenHistory();
+        if (flat != null) tag.putIntArray("history", flat);
         builder.set(DataComponents.CUSTOM_DATA, CustomData.of(tag));
     }
 
@@ -264,17 +237,7 @@ public class ChessboardBlockEntity extends BlockEntity {
         }
         selRow = tag.getInt("selRow").orElse(-1);
         selCol = tag.getInt("selCol").orElse(-1);
-        history.clear();
         int histSize = tag.getInt("histSize").orElse(0);
-        if (histSize > 0 && tag.contains("history")) {
-            int[] flat = tag.getIntArray("history").orElse(null);
-            if (flat != null && flat.length >= histSize * 5) {
-                for (int i = histSize - 1; i >= 0; i--) {
-                    int off = i * 5;
-                    history.push(new int[]{flat[off], flat[off+1], flat[off+2], flat[off+3], flat[off+4]});
-                }
-            }
-        }
+        if (histSize > 0 && tag.contains("history")) restoreHistory(tag.getIntArray("history").orElse(null));
     }
-
 }
