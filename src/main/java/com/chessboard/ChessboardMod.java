@@ -132,7 +132,7 @@ public class ChessboardMod {
         TABS.register(modEventBus);
         BLOCK_ENTITIES.register(modEventBus);
         NeoForge.EVENT_BUS.register(this);
-        modContainer.registerConfig(ModConfig.Type.COMMON, Config.SPEC);
+        modContainer.registerConfig(ModConfig.Type.CLIENT, Config.CLIENT_SPEC);
     }
 
     @SubscribeEvent

@@ -1,7 +1,7 @@
 package com.chessboard.client.screen;
 
+import com.chessboard.Config;
 import com.chessboard.blockentity.ChessboardBlockEntity;
-import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
@@ -63,6 +63,17 @@ public class ChessboardScreen extends Screen {
                     onClose();
                 })
                 .bounds(cx - 50, cy + 5, 100, 20).build());
+
+        addRenderableWidget(Button.builder(rightClickMenuLabel(), btn -> {
+                    Config.RIGHT_CLICK_OPENS_MENU.set(!Config.RIGHT_CLICK_OPENS_MENU.get());
+                    Config.CLIENT_SPEC.save();
+                    btn.setMessage(rightClickMenuLabel());
+                })
+                .bounds(cx - 100, cy + 32, 200, 20).build());
+    }
+
+    private static Component rightClickMenuLabel() {
+        return Component.literal("右键侧面打开菜单：" + (Config.RIGHT_CLICK_OPENS_MENU.get() ? "开" : "关"));
     }
 
     private String getCurrentCode() {
