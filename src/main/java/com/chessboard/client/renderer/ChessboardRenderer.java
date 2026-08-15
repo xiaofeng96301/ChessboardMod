@@ -36,6 +36,7 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
     private static final float LIFT = 0.045f;
     private static final int LIFT_MS = 150;
     private static final int MOVE_MS = 250;
+    private static final int FLIP_MS = 300;
 
     private final BlockModelResolver modelResolver;
     private final Font font;
@@ -47,17 +48,20 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
     }
 
     private static class AnimData {
-        long selMs, unselMs, moveMs;
+        long selMs, unselMs, moveMs, flipMs;
         int[] prevPieces;
         int prevSelRow = -1, prevSelCol = -1;
         int unselRow = -1, unselCol = -1;
         int fromRow = -1, fromCol = -1, toRow = -1, toCol = -1;
+        int flipRow = -1, flipCol = -1;
     }
 
     private BlockModelRenderState loadModel(BoardGameLogic g, int piece) {
         var ms = new BlockModelRenderState();
         var block = switch (g) {
-            case com.chessboard.game.ChineseChessLogic ccl -> ChessboardMod.CHESS_PIECE_MODEL.get();
+            case com.chessboard.game.ChineseChessLogic ccl -> com.chessboard.game.ChineseChessLogic.isHidden(piece)
+                    ? ChessboardMod.CHINESE_PIECE_HIDDEN.get()
+                    : ChessboardMod.CHESS_PIECE_MODEL.get();
             case com.chessboard.game.GomokuLogic gml -> {
                 if (com.chessboard.game.GomokuLogic.isGray(piece)) {
                     yield ChessboardMod.GOMOKU_PIECE_GRAY.get();
@@ -123,6 +127,18 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
                     a.toRow = i / g.cols(); a.toCol = i % g.cols(); break;
                 }
             }
+            // 暗棋翻面动画：prev 为暗棋、now 为明棋
+            a.flipRow = a.flipCol = -1;
+            if (s.logic instanceof com.chessboard.game.ChineseChessLogic) {
+                for (int i = 0; i < total; i++) {
+                    if (com.chessboard.game.ChineseChessLogic.isHidden(a.prevPieces[i])
+                            && !com.chessboard.game.ChineseChessLogic.isHidden(s.pieces[i])
+                            && a.prevPieces[i] != s.pieces[i]) {
+                        a.flipRow = i / g.cols(); a.flipCol = i % g.cols(); a.flipMs = now;
+                        break;
+                    }
+                }
+            }
             a.moveMs = now;
             System.arraycopy(s.pieces, 0, a.prevPieces, 0, total);
         }
@@ -141,6 +157,8 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
         s.unselRow = a.unselRow; s.unselCol = a.unselCol;
         s.fromRow = a.fromRow; s.fromCol = a.fromCol;
         s.toRow = a.toRow; s.toCol = a.toCol;
+        s.flipRow = a.flipRow; s.flipCol = a.flipCol;
+        s.flipT = Math.clamp((now - a.flipMs) / (float) FLIP_MS, 0f, 1f);
     }
 
     @Override
@@ -154,14 +172,20 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
                 if (piece == 0) continue;
                 if (s.moveT < 1f && s.toRow == row && s.toCol == col) continue;
 
-                BlockModelRenderState model = loadModel(s.logic, piece);
+                boolean flipping = (s.flipRow == row && s.flipCol == col && s.flipT < 1f);
+                // 翻面前半程显示背面（暗棋）模型
+                int modelPiece = (flipping && s.flipT < 0.5f)
+                        ? com.chessboard.game.ChineseChessLogic.hide(piece)
+                        : piece;
+                BlockModelRenderState model = loadModel(s.logic, modelPiece);
                 boolean sel = (s.selRow == row && s.selCol == col);
                 float lift = sel ? s.lift : 0;
                 if (s.unselRow == row && s.unselCol == col && s.unlift > 0 && lift == 0) lift = s.unlift;
 
                 float[] pos = gridPos(s, row, col);
-                renderPiece(ps, collector, model, pos[0], pos[1], s, lift, light, overlay, piece);
-                renderText(ps, collector, pos[0], pos[1], s, lift, light, piece);
+                float flipDeg = flipping ? 180f * (1f - s.flipT) : 0;
+                renderPiece(ps, collector, model, pos[0], pos[1], s, lift, light, overlay, modelPiece, flipDeg);
+                renderText(ps, collector, pos[0], pos[1], s, lift, light, modelPiece);
             }
         }
 
@@ -173,7 +197,7 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
                 float[] to   = gridPos(s, s.toRow, s.toCol);
                 float wx = lerp(from[0], to[0], s.moveT);
                 float wz = lerp(from[1], to[1], s.moveT);
-                renderPiece(ps, collector, mm, wx, wz, s, LIFT * (1f - s.moveT), light, overlay, p);
+                renderPiece(ps, collector, mm, wx, wz, s, LIFT * (1f - s.moveT), light, overlay, p, 0);
                 renderText(ps, collector, wx, wz, s, LIFT * (1f - s.moveT), light, p);
             }
         }
@@ -181,7 +205,7 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
 
     private static void renderPiece(PoseStack ps, SubmitNodeCollector cc, BlockModelRenderState m,
                                      float wx, float wz, ChessboardRenderState s, float lift,
-                                     int light, int overlay, int piece) {
+                                     int light, int overlay, int piece, float flipDeg) {
         float y = s.logic.pieceHeight() + lift;
         float cx = s.logic.pieceCenterX() / 16f, cz = s.logic.pieceCenterZ() / 16f;
         float sc = s.logic.pieceScale();
@@ -190,6 +214,7 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
         ps.mulPose(Axis.YP.rotationDegrees(switch (s.facing) {
             case WEST -> -90; case NORTH -> 180; case EAST -> 90; default -> 0;
         }));
+        if (flipDeg != 0) ps.mulPose(Axis.XP.rotationDegrees(flipDeg));
         if (s.logic.pieceFlipX(piece)) ps.mulPose(Axis.XP.rotationDegrees(180));
         float ry = s.logic.pieceYRotation(piece);
         if (ry != 0) ps.mulPose(Axis.YP.rotationDegrees(ry));
@@ -205,7 +230,7 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
         String name = s.logic.pieceName(piece);
         if (name.isEmpty()) return;
         FormattedCharSequence text = FormattedCharSequence.forward(name, Style.EMPTY);
-        float textH = s.logic.pieceHeight() + lift + 0.02f;
+        float textH = s.logic.pieceHeight() + lift + s.logic.pieceTextHeight();
         ps.pushPose();
         ps.translate(wx, textH, wz);
         ps.mulPose(Axis.YP.rotationDegrees(switch (s.facing) {
@@ -214,8 +239,8 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
         if (s.logic.side(piece) != 0) ps.mulPose(Axis.YP.rotationDegrees(180));
         ps.mulPose(Axis.XP.rotationDegrees(90));
         ps.scale(0.006f, 0.006f, 0.006f);
-        float tx = -font.width(text) / 2f + 0.5f;
-        float ty = -font.lineHeight / 2f + 0.5f;
+        float tx = -font.width(text) / 2f + s.logic.pieceTextOffsetX();
+        float ty = -font.lineHeight / 2f + s.logic.pieceTextOffsetZ();
         cc.submitText(ps, tx, ty, text, false, Font.DisplayMode.POLYGON_OFFSET, light,
                 s.logic.textColor(piece), 0, 0xFF888888);
         ps.popPose();
@@ -242,5 +267,7 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
         public float lift, unlift, moveT = 1f;
         public int unselRow = -1, unselCol = -1;
         public int fromRow = -1, fromCol = -1, toRow = -1, toCol = -1;
+        public int flipRow = -1, flipCol = -1;
+        public float flipT = 1f;
     }
 }

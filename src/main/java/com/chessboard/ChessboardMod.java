@@ -65,6 +65,8 @@ public class ChessboardMod {
     // 棋子模型方块（纯渲染用）
     public static final DeferredBlock<Block> CHESS_PIECE_MODEL = BLOCKS.registerSimpleBlock(
             "chess_piece", p -> p.mapColor(MapColor.WOOD).noOcclusion());
+    public static final DeferredBlock<Block> CHINESE_PIECE_HIDDEN = BLOCKS.registerSimpleBlock(
+            "chinese_piece_hidden", p -> p.mapColor(MapColor.WOOD).noOcclusion());
     public static final DeferredBlock<Block> GOMOKU_PIECE_BLACK = BLOCKS.registerSimpleBlock(
             "gomoku_piece_black", p -> p.mapColor(MapColor.WOOD).noOcclusion());
     public static final DeferredBlock<Block> GOMOKU_PIECE_WHITE = BLOCKS.registerSimpleBlock(
@@ -195,6 +197,38 @@ public class ChessboardMod {
                                                                     }
                                                                     return 1;
                                                                 }))))))
+                        .then(Commands.literal("darkstart")
+                                .then(Commands.argument("x", IntegerArgumentType.integer())
+                                        .then(Commands.argument("y", IntegerArgumentType.integer())
+                                                .then(Commands.argument("z", IntegerArgumentType.integer())
+                                                        .executes(ctx -> {
+                                                            BlockPos pos = new BlockPos(
+                                                                    IntegerArgumentType.getInteger(ctx, "x"),
+                                                                    IntegerArgumentType.getInteger(ctx, "y"),
+                                                                    IntegerArgumentType.getInteger(ctx, "z"));
+                                                            var be = ctx.getSource().getLevel().getBlockEntity(pos);
+                                                            if (be instanceof ChessboardBlockEntity board) {
+                                                                board.darkStart();
+                                                                ctx.getSource().sendSuccess(() -> Component.literal("已暗棋开局"), true);
+                                                            }
+                                                            return 1;
+                                                        })))))
+                        .then(Commands.literal("fulldarkstart")
+                                .then(Commands.argument("x", IntegerArgumentType.integer())
+                                        .then(Commands.argument("y", IntegerArgumentType.integer())
+                                                .then(Commands.argument("z", IntegerArgumentType.integer())
+                                                        .executes(ctx -> {
+                                                            BlockPos pos = new BlockPos(
+                                                                    IntegerArgumentType.getInteger(ctx, "x"),
+                                                                    IntegerArgumentType.getInteger(ctx, "y"),
+                                                                    IntegerArgumentType.getInteger(ctx, "z"));
+                                                            var be = ctx.getSource().getLevel().getBlockEntity(pos);
+                                                            if (be instanceof ChessboardBlockEntity board) {
+                                                                board.fullDarkStart();
+                                                                ctx.getSource().sendSuccess(() -> Component.literal("已全暗棋开局"), true);
+                                                            }
+                                                            return 1;
+                                                        })))))
                         .then(Commands.literal("randomstart")
                                 .then(Commands.argument("x", IntegerArgumentType.integer())
                                         .then(Commands.argument("y", IntegerArgumentType.integer())

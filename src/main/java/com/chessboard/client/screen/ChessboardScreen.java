@@ -2,6 +2,7 @@ package com.chessboard.client.screen;
 
 import com.chessboard.Config;
 import com.chessboard.blockentity.ChessboardBlockEntity;
+import com.chessboard.game.ChineseChessLogic;
 import com.chessboard.game.GomokuLogic;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
@@ -65,13 +66,25 @@ public class ChessboardScreen extends Screen {
                 })
                 .bounds(cx - 50, cy + 5, 100, 20).build());
 
-        // 五子棋棋盘才有随机开局
+        // ── 特殊模式区（独立一行）──
+        if (isChineseChessBoard()) {
+            addRenderableWidget(Button.builder(Component.literal("暗棋开局"), btn -> {
+                        sendCmd("darkstart");
+                        onClose();
+                    })
+                    .bounds(cx - 92, cy + 32, 80, 20).build());
+            addRenderableWidget(Button.builder(Component.literal("全暗棋开局"), btn -> {
+                        sendCmd("fulldarkstart");
+                        onClose();
+                    })
+                    .bounds(cx - 8, cy + 32, 90, 20).build());
+        }
         if (isGomokuBoard()) {
             addRenderableWidget(Button.builder(Component.literal("随机开局"), btn -> {
                         sendCmd("randomstart");
                         onClose();
                     })
-                    .bounds(cx + 52, cy + 5, 80, 20).build());
+                    .bounds(cx - 50, cy + 32, 100, 20).build());
         }
 
         addRenderableWidget(Button.builder(rightClickMenuLabel(), btn -> {
@@ -79,11 +92,17 @@ public class ChessboardScreen extends Screen {
                     Config.CLIENT_SPEC.save();
                     btn.setMessage(rightClickMenuLabel());
                 })
-                .bounds(cx - 100, cy + 32, 200, 20).build());
+                .bounds(cx - 100, cy + 57, 200, 20).build());
     }
 
     private static Component rightClickMenuLabel() {
         return Component.literal("右键侧面打开菜单：" + (Config.RIGHT_CLICK_OPENS_MENU.get() ? "开" : "关"));
+    }
+
+    private boolean isChineseChessBoard() {
+        if (minecraft.level == null) return false;
+        var be = minecraft.level.getBlockEntity(boardPos);
+        return be instanceof ChessboardBlockEntity board && board.gameLogic() instanceof ChineseChessLogic;
     }
 
     private boolean isGomokuBoard() {

@@ -85,6 +85,10 @@ public class ChessboardBlockEntity extends BlockEntity {
             }
             case ClickResult.None() -> {}
             case ClickResult.Reset() -> resetBoard();
+            case ClickResult.Flip(int rw, int cl) -> {
+                pieces[idx(rw, cl)] = com.chessboard.game.ChineseChessLogic.reveal(pieces[idx(rw, cl)]);
+                selRow = -1; selCol = -1;
+            }
         }
         notifyChange();
     }
@@ -111,6 +115,28 @@ public class ChessboardBlockEntity extends BlockEntity {
 
     public void importCode(String code) {
         gameLogic().decodePieces(pieces, code);
+        history.clear();
+        selRow = -1; selCol = -1;
+        notifyChange();
+    }
+
+    /** 中国象棋暗棋开局：重置棋盘，类型随机打乱并盖上背面 */
+    public void darkStart() {
+        BoardGameLogic g = gameLogic();
+        if (!(g instanceof com.chessboard.game.ChineseChessLogic)) return;
+        com.chessboard.game.ChineseChessLogic ccl = (com.chessboard.game.ChineseChessLogic) g;
+        ccl.darkStart(pieces);
+        history.clear();
+        selRow = -1; selCol = -1;
+        notifyChange();
+    }
+
+    /** 中国象棋全暗棋开局：重置棋盘，红黑双方棋子值和位置全部随机并盖上背面 */
+    public void fullDarkStart() {
+        BoardGameLogic g = gameLogic();
+        if (!(g instanceof com.chessboard.game.ChineseChessLogic)) return;
+        com.chessboard.game.ChineseChessLogic ccl = (com.chessboard.game.ChineseChessLogic) g;
+        ccl.fullDarkStart(pieces);
         history.clear();
         selRow = -1; selCol = -1;
         notifyChange();
