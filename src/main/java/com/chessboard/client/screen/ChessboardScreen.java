@@ -2,6 +2,7 @@ package com.chessboard.client.screen;
 
 import com.chessboard.Config;
 import com.chessboard.blockentity.ChessboardBlockEntity;
+import com.chessboard.game.GomokuLogic;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
@@ -64,6 +65,15 @@ public class ChessboardScreen extends Screen {
                 })
                 .bounds(cx - 50, cy + 5, 100, 20).build());
 
+        // 五子棋棋盘才有随机开局
+        if (isGomokuBoard()) {
+            addRenderableWidget(Button.builder(Component.literal("随机开局"), btn -> {
+                        sendCmd("randomstart");
+                        onClose();
+                    })
+                    .bounds(cx + 52, cy + 5, 80, 20).build());
+        }
+
         addRenderableWidget(Button.builder(rightClickMenuLabel(), btn -> {
                     Config.RIGHT_CLICK_OPENS_MENU.set(!Config.RIGHT_CLICK_OPENS_MENU.get());
                     Config.CLIENT_SPEC.save();
@@ -74,6 +84,12 @@ public class ChessboardScreen extends Screen {
 
     private static Component rightClickMenuLabel() {
         return Component.literal("右键侧面打开菜单：" + (Config.RIGHT_CLICK_OPENS_MENU.get() ? "开" : "关"));
+    }
+
+    private boolean isGomokuBoard() {
+        if (minecraft.level == null) return false;
+        var be = minecraft.level.getBlockEntity(boardPos);
+        return be instanceof ChessboardBlockEntity board && board.gameLogic() instanceof GomokuLogic;
     }
 
     private String getCurrentCode() {

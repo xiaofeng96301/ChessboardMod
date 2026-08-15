@@ -69,6 +69,8 @@ public class ChessboardMod {
             "gomoku_piece_black", p -> p.mapColor(MapColor.WOOD).noOcclusion());
     public static final DeferredBlock<Block> GOMOKU_PIECE_WHITE = BLOCKS.registerSimpleBlock(
             "gomoku_piece_white", p -> p.mapColor(MapColor.WOOD).noOcclusion());
+    public static final DeferredBlock<Block> GOMOKU_PIECE_GRAY = BLOCKS.registerSimpleBlock(
+            "gomoku_piece_gray", p -> p.mapColor(MapColor.WOOD).noOcclusion());
     public static final DeferredBlock<Block> TICTACTOE_PIECE_MODEL = BLOCKS.registerSimpleBlock(
             "tictactoe_piece", p -> p.mapColor(MapColor.WOOD).noOcclusion());
 
@@ -193,6 +195,22 @@ public class ChessboardMod {
                                                                     }
                                                                     return 1;
                                                                 }))))))
+                        .then(Commands.literal("randomstart")
+                                .then(Commands.argument("x", IntegerArgumentType.integer())
+                                        .then(Commands.argument("y", IntegerArgumentType.integer())
+                                                .then(Commands.argument("z", IntegerArgumentType.integer())
+                                                        .executes(ctx -> {
+                                                            BlockPos pos = new BlockPos(
+                                                                    IntegerArgumentType.getInteger(ctx, "x"),
+                                                                    IntegerArgumentType.getInteger(ctx, "y"),
+                                                                    IntegerArgumentType.getInteger(ctx, "z"));
+                                                            var be = ctx.getSource().getLevel().getBlockEntity(pos);
+                                                            if (be instanceof ChessboardBlockEntity board) {
+                                                                board.randomStart();
+                                                                ctx.getSource().sendSuccess(() -> Component.literal("已随机开局"), true);
+                                                            }
+                                                            return 1;
+                                                        })))))
                         .then(Commands.literal("reset")
                                 .then(Commands.argument("x", IntegerArgumentType.integer())
                                         .then(Commands.argument("y", IntegerArgumentType.integer())

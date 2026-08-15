@@ -15,6 +15,8 @@ public class GomokuLogic implements BoardGameLogic {
     public static final int BLACK = 1;
     /** 白子 */
     public static final int WHITE = 2;
+    /** 灰子（随机开局障碍） */
+    public static final int GRAY = 3;
 
     private int nextSide = 0; // 0=黑先, 1=白
 
@@ -39,8 +41,14 @@ public class GomokuLogic implements BoardGameLogic {
     @Override public float pieceScale() { return 0.25f / 1.5f; }
 
     @Override public String pieceModelPath(int piece) {
-        return piece == BLACK ? "chessboard:block/gomoku_pieces_black" : "chessboard:block/gomoku_pieces_white";
+        return switch (piece) {
+            case BLACK -> "chessboard:block/gomoku_pieces_black";
+            case GRAY -> "chessboard:block/gomoku_pieces_gray";
+            default -> "chessboard:block/gomoku_pieces_white";
+        };
     }
+
+    public static boolean isGray(int piece) { return piece == GRAY; }
 
     @Override
     public ClickResult onClick(int[] pieces, int selRow, int selCol, int clickRow, int clickCol) {

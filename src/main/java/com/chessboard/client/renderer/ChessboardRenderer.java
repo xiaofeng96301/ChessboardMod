@@ -58,9 +58,14 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
         var ms = new BlockModelRenderState();
         var block = switch (g) {
             case com.chessboard.game.ChineseChessLogic ccl -> ChessboardMod.CHESS_PIECE_MODEL.get();
-            case com.chessboard.game.GomokuLogic gml -> gml.side(piece) == 0
-                    ? ChessboardMod.GOMOKU_PIECE_BLACK.get()
-                    : ChessboardMod.GOMOKU_PIECE_WHITE.get();
+            case com.chessboard.game.GomokuLogic gml -> {
+                if (com.chessboard.game.GomokuLogic.isGray(piece)) {
+                    yield ChessboardMod.GOMOKU_PIECE_GRAY.get();
+                }
+                yield gml.side(piece) == 0
+                        ? ChessboardMod.GOMOKU_PIECE_BLACK.get()
+                        : ChessboardMod.GOMOKU_PIECE_WHITE.get();
+            }
             case com.chessboard.game.TicTacToeLogic ttt -> ChessboardMod.TICTACTOE_PIECE_MODEL.get();
             case com.chessboard.game.ChessLogic cl -> {
                 boolean isWhite = cl.side(piece) == 0;

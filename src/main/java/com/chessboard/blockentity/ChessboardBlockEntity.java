@@ -116,6 +116,29 @@ public class ChessboardBlockEntity extends BlockEntity {
         notifyChange();
     }
 
+    /** 五子棋随机开局：先重置棋盘，再在随机空位放 3~10 个灰色障碍棋子 */
+    public void randomStart() {
+        BoardGameLogic g = gameLogic();
+        if (!(g instanceof GomokuLogic)) return;
+        g.initBoard(pieces);
+        history.clear();
+        java.util.ArrayList<Integer> empty = new java.util.ArrayList<>();
+        for (int i = 0; i < pieces.length; i++) {
+            if (pieces[i] == 0) empty.add(i);
+        }
+        if (empty.isEmpty()) return;
+        java.util.Collections.shuffle(empty);
+        int count = 3 + java.util.concurrent.ThreadLocalRandom.current().nextInt(8); // 3~10
+        count = Math.min(count, empty.size());
+        for (int i = 0; i < count; i++) {
+            int idx = empty.get(i);
+            pieces[idx] = GomokuLogic.GRAY;
+            history.push(new int[]{-1, -1, idx / g.cols(), idx % g.cols(), 0});
+        }
+        selRow = -1; selCol = -1;
+        notifyChange();
+    }
+
     public void resetBoard() {
         gameLogic().initBoard(pieces);
         history.clear();
