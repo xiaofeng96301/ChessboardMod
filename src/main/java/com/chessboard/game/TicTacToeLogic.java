@@ -8,12 +8,21 @@ import java.util.Arrays;
  */
 public class TicTacToeLogic implements BoardGameLogic {
 
-    public static final TicTacToeLogic INSTANCE = new TicTacToeLogic();
+    public static final TicTacToeLogic INSTANCE = new TicTacToeLogic(3.2f, 9.5f);
 
     private static final int ROWS = 3, COLS = 3;
     static final int O = 1, X = 2;
 
+    private final float offset;
+    private final float span;
     private int nextSide = 0;
+
+    public TicTacToeLogic() { this(3.2f, 9.5f); }
+
+    public TicTacToeLogic(float offset, float span) {
+        this.offset = offset;
+        this.span = span;
+    }
 
     @Override public int rows() { return ROWS; }
     @Override public int cols() { return COLS; }
@@ -31,9 +40,9 @@ public class TicTacToeLogic implements BoardGameLogic {
     @Override public float pieceScale() { return 0.55f; }
     @Override public float pieceCenterX() { return 3.5f; }
     @Override public float pieceCenterZ() { return 3.5f; }
-    @Override public float gridSpan() { return 9.5f; }
-    @Override public float gridOffsetX() { return 3.2f; }
-    @Override public float gridOffsetZ() { return 3.2f; }
+    @Override public float gridSpan() { return span; }
+    @Override public float gridOffsetX() { return offset; }
+    @Override public float gridOffsetZ() { return offset; }
 
     @Override public String pieceModelPath(int piece) {
         return "chessboard:block/tictactoe_pieces";

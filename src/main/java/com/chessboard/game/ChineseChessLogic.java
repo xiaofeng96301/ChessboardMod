@@ -8,14 +8,28 @@ import java.util.Arrays;
  */
 public class ChineseChessLogic implements BoardGameLogic {
 
-    public static final ChineseChessLogic INSTANCE = new ChineseChessLogic();
+    public static final ChineseChessLogic INSTANCE = new ChineseChessLogic(1f, 14f);
 
     private static final int ROWS = 10, COLS = 9;
     /** 暗棋隐藏位（bit4），与 side/type 不冲突 */
     public static final int HIDDEN_BIT = 0x10;
 
+    private final float offset;
+    private final float span;
+
+    public ChineseChessLogic() { this(1f, 14f); }
+
+    public ChineseChessLogic(float offset, float span) {
+        this.offset = offset;
+        this.span = span;
+    }
+
     @Override public int rows() { return ROWS; }
     @Override public int cols() { return COLS; }
+
+    @Override public float gridSpan() { return span; }
+    @Override public float gridOffsetX() { return offset; }
+    @Override public float gridOffsetZ() { return offset; }
 
     @Override
     public void initBoard(int[] p) {

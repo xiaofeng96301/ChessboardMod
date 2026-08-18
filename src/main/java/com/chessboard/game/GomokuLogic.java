@@ -7,9 +7,19 @@ import java.util.Arrays;
  */
 public class GomokuLogic implements BoardGameLogic {
 
-    public static final GomokuLogic INSTANCE = new GomokuLogic();
+    public static final GomokuLogic INSTANCE = new GomokuLogic(1f, 14f);
 
     private static final int ROWS = 15, COLS = 15;
+
+    private final float offset;
+    private final float span;
+
+    public GomokuLogic() { this(1f, 14f); }
+
+    public GomokuLogic(float offset, float span) {
+        this.offset = offset;
+        this.span = span;
+    }
 
     /** 黑子 */
     public static final int BLACK = 1;
@@ -39,6 +49,9 @@ public class GomokuLogic implements BoardGameLogic {
 
     @Override public String codePrefix() { return "wz"; }
     @Override public float pieceScale() { return 0.25f / 1.5f; }
+    @Override public float gridSpan() { return span; }
+    @Override public float gridOffsetX() { return offset; }
+    @Override public float gridOffsetZ() { return offset; }
 
     @Override public String pieceModelPath(int piece) {
         return switch (piece) {

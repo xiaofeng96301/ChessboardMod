@@ -1,0 +1,27 @@
+{
+  "type": "minecraft:stonecutting",
+  "ingredient": [
+    "minecraft:stripped_pale_oak_log",
+    "minecraft:stripped_pale_oak_wood"
+  ],
+  "result": {
+    "id": "chessboard:gomoku_board",
+    "components": {
+      "minecraft:block_state": {
+        "wood": "pale_oak",
+        "frameless": "false"
+      },
+      "minecraft:custom_model_data": {
+        "floats": [
+          12.0
+        ],
+        "flags": [],
+        "strings": [],
+        "colors": []
+      },
+      "minecraft:custom_name": {
+        "translate": "item.chessboard.variant.gomoku_board_pale_oak"
+      }
+    }
+  }
+}

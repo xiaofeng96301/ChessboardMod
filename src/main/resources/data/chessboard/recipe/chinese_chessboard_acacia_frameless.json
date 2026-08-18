@@ -1,0 +1,27 @@
+{
+  "type": "minecraft:stonecutting",
+  "ingredient": [
+    "minecraft:stripped_acacia_log",
+    "minecraft:stripped_acacia_wood"
+  ],
+  "result": {
+    "id": "chessboard:chinese_chessboard",
+    "components": {
+      "minecraft:block_state": {
+        "wood": "acacia",
+        "frameless": "true"
+      },
+      "minecraft:custom_model_data": {
+        "floats": [
+          7.0
+        ],
+        "flags": [],
+        "strings": [],
+        "colors": []
+      },
+      "minecraft:custom_name": {
+        "translate": "item.chessboard.variant.chinese_chessboard_acacia_frameless"
+      }
+    }
+  }
+}

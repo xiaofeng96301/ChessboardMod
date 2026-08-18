@@ -49,7 +49,7 @@ public class ChessboardBlockEntity extends BlockEntity {
     public BoardGameLogic gameLogic() {
         if (logic == null) {
             if (getBlockState().getBlock() instanceof ChessboardBlock cb) {
-                logic = cb.getGameLogic();
+                logic = cb.getGameLogic(getBlockState());
                 pieces = new int[logic.rows() * logic.cols()];
                 logic.initBoard(pieces);
             }

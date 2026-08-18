@@ -7,10 +7,20 @@ import java.util.Arrays;
  */
 public class ChessLogic implements BoardGameLogic {
 
-    public static final ChessLogic INSTANCE = new ChessLogic();
+    public static final ChessLogic INSTANCE = new ChessLogic(1.9f, 12.2f);
 
     public static final int KING = 1, QUEEN = 2, BISHOP = 3, KNIGHT = 4, ROOK = 5, PAWN = 6;
     private static final int ROWS = 8, COLS = 8;
+
+    private final float offset;
+    private final float span;
+
+    public ChessLogic() { this(1.9f, 12.2f); }
+
+    public ChessLogic(float offset, float span) {
+        this.offset = offset;
+        this.span = span;
+    }
 
     @Override public int rows() { return ROWS; }
     @Override public int cols() { return COLS; }
@@ -43,9 +53,9 @@ public class ChessLogic implements BoardGameLogic {
     public float pieceYRotation(int piece) {
         return side(piece) == 0 ? 90 : 270;
     }
-    @Override public float gridSpan() { return 12.2f; }
-    @Override public float gridOffsetX() { return 1.9f; }
-    @Override public float gridOffsetZ() { return 1.9f; }
+    @Override public float gridSpan() { return span; }
+    @Override public float gridOffsetX() { return offset; }
+    @Override public float gridOffsetZ() { return offset; }
 
     @Override
     public String pieceModelPath(int piece) {

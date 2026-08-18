@@ -1,0 +1,27 @@
+{
+  "type": "minecraft:stonecutting",
+  "ingredient": [
+    "minecraft:stripped_birch_log",
+    "minecraft:stripped_birch_wood"
+  ],
+  "result": {
+    "id": "chessboard:chinese_chessboard",
+    "components": {
+      "minecraft:block_state": {
+        "wood": "birch",
+        "frameless": "false"
+      },
+      "minecraft:custom_model_data": {
+        "floats": [
+          4.0
+        ],
+        "flags": [],
+        "strings": [],
+        "colors": []
+      },
+      "minecraft:custom_name": {
+        "translate": "item.chessboard.variant.chinese_chessboard_birch"
+      }
+    }
+  }
+}

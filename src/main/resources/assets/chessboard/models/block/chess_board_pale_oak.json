@@ -1,0 +1,7 @@
+{
+  "parent": "chessboard:block/board",
+  "textures": {
+    "0": "chessboard:block/chess_board",
+    "2": "minecraft:block/stripped_pale_oak_log"
+  }
+}

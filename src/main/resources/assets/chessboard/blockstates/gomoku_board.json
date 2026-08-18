@@ -1,8 +1,228 @@
 {
   "variants": {
-    "facing=south": { "model": "chessboard:block/gomoku_board", "y": 0 },
-    "facing=west":  { "model": "chessboard:block/gomoku_board", "y": 90 },
-    "facing=north": { "model": "chessboard:block/gomoku_board", "y": 180 },
-    "facing=east":  { "model": "chessboard:block/gomoku_board", "y": 270 }
+    "facing=south,wood=oak,frameless=false": {
+      "model": "chessboard:block/gomoku_board_oak",
+      "y": 0
+    },
+    "facing=west,wood=oak,frameless=false": {
+      "model": "chessboard:block/gomoku_board_oak",
+      "y": 90
+    },
+    "facing=north,wood=oak,frameless=false": {
+      "model": "chessboard:block/gomoku_board_oak",
+      "y": 180
+    },
+    "facing=east,wood=oak,frameless=false": {
+      "model": "chessboard:block/gomoku_board_oak",
+      "y": 270
+    },
+    "facing=south,wood=oak,frameless=true": {
+      "model": "chessboard:block/gomoku_board_oak_frameless",
+      "y": 0
+    },
+    "facing=west,wood=oak,frameless=true": {
+      "model": "chessboard:block/gomoku_board_oak_frameless",
+      "y": 90
+    },
+    "facing=north,wood=oak,frameless=true": {
+      "model": "chessboard:block/gomoku_board_oak_frameless",
+      "y": 180
+    },
+    "facing=east,wood=oak,frameless=true": {
+      "model": "chessboard:block/gomoku_board_oak_frameless",
+      "y": 270
+    },
+    "facing=south,wood=spruce,frameless=false": {
+      "model": "chessboard:block/gomoku_board_spruce",
+      "y": 0
+    },
+    "facing=west,wood=spruce,frameless=false": {
+      "model": "chessboard:block/gomoku_board_spruce",
+      "y": 90
+    },
+    "facing=north,wood=spruce,frameless=false": {
+      "model": "chessboard:block/gomoku_board_spruce",
+      "y": 180
+    },
+    "facing=east,wood=spruce,frameless=false": {
+      "model": "chessboard:block/gomoku_board_spruce",
+      "y": 270
+    },
+    "facing=south,wood=spruce,frameless=true": {
+      "model": "chessboard:block/gomoku_board_spruce_frameless",
+      "y": 0
+    },
+    "facing=west,wood=spruce,frameless=true": {
+      "model": "chessboard:block/gomoku_board_spruce_frameless",
+      "y": 90
+    },
+    "facing=north,wood=spruce,frameless=true": {
+      "model": "chessboard:block/gomoku_board_spruce_frameless",
+      "y": 180
+    },
+    "facing=east,wood=spruce,frameless=true": {
+      "model": "chessboard:block/gomoku_board_spruce_frameless",
+      "y": 270
+    },
+    "facing=south,wood=birch,frameless=false": {
+      "model": "chessboard:block/gomoku_board_birch",
+      "y": 0
+    },
+    "facing=west,wood=birch,frameless=false": {
+      "model": "chessboard:block/gomoku_board_birch",
+      "y": 90
+    },
+    "facing=north,wood=birch,frameless=false": {
+      "model": "chessboard:block/gomoku_board_birch",
+      "y": 180
+    },
+    "facing=east,wood=birch,frameless=false": {
+      "model": "chessboard:block/gomoku_board_birch",
+      "y": 270
+    },
+    "facing=south,wood=birch,frameless=true": {
+      "model": "chessboard:block/gomoku_board_birch_frameless",
+      "y": 0
+    },
+    "facing=west,wood=birch,frameless=true": {
+      "model": "chessboard:block/gomoku_board_birch_frameless",
+      "y": 90
+    },
+    "facing=north,wood=birch,frameless=true": {
+      "model": "chessboard:block/gomoku_board_birch_frameless",
+      "y": 180
+    },
+    "facing=east,wood=birch,frameless=true": {
+      "model": "chessboard:block/gomoku_board_birch_frameless",
+      "y": 270
+    },
+    "facing=south,wood=acacia,frameless=false": {
+      "model": "chessboard:block/gomoku_board_acacia",
+      "y": 0
+    },
+    "facing=west,wood=acacia,frameless=false": {
+      "model": "chessboard:block/gomoku_board_acacia",
+      "y": 90
+    },
+    "facing=north,wood=acacia,frameless=false": {
+      "model": "chessboard:block/gomoku_board_acacia",
+      "y": 180
+    },
+    "facing=east,wood=acacia,frameless=false": {
+      "model": "chessboard:block/gomoku_board_acacia",
+      "y": 270
+    },
+    "facing=south,wood=acacia,frameless=true": {
+      "model": "chessboard:block/gomoku_board_acacia_frameless",
+      "y": 0
+    },
+    "facing=west,wood=acacia,frameless=true": {
+      "model": "chessboard:block/gomoku_board_acacia_frameless",
+      "y": 90
+    },
+    "facing=north,wood=acacia,frameless=true": {
+      "model": "chessboard:block/gomoku_board_acacia_frameless",
+      "y": 180
+    },
+    "facing=east,wood=acacia,frameless=true": {
+      "model": "chessboard:block/gomoku_board_acacia_frameless",
+      "y": 270
+    },
+    "facing=south,wood=dark_oak,frameless=false": {
+      "model": "chessboard:block/gomoku_board_dark_oak",
+      "y": 0
+    },
+    "facing=west,wood=dark_oak,frameless=false": {
+      "model": "chessboard:block/gomoku_board_dark_oak",
+      "y": 90
+    },
+    "facing=north,wood=dark_oak,frameless=false": {
+      "model": "chessboard:block/gomoku_board_dark_oak",
+      "y": 180
+    },
+    "facing=east,wood=dark_oak,frameless=false": {
+      "model": "chessboard:block/gomoku_board_dark_oak",
+      "y": 270
+    },
+    "facing=south,wood=dark_oak,frameless=true": {
+      "model": "chessboard:block/gomoku_board_dark_oak_frameless",
+      "y": 0
+    },
+    "facing=west,wood=dark_oak,frameless=true": {
+      "model": "chessboard:block/gomoku_board_dark_oak_frameless",
+      "y": 90
+    },
+    "facing=north,wood=dark_oak,frameless=true": {
+      "model": "chessboard:block/gomoku_board_dark_oak_frameless",
+      "y": 180
+    },
+    "facing=east,wood=dark_oak,frameless=true": {
+      "model": "chessboard:block/gomoku_board_dark_oak_frameless",
+      "y": 270
+    },
+    "facing=south,wood=cherry,frameless=false": {
+      "model": "chessboard:block/gomoku_board_cherry",
+      "y": 0
+    },
+    "facing=west,wood=cherry,frameless=false": {
+      "model": "chessboard:block/gomoku_board_cherry",
+      "y": 90
+    },
+    "facing=north,wood=cherry,frameless=false": {
+      "model": "chessboard:block/gomoku_board_cherry",
+      "y": 180
+    },
+    "facing=east,wood=cherry,frameless=false": {
+      "model": "chessboard:block/gomoku_board_cherry",
+      "y": 270
+    },
+    "facing=south,wood=cherry,frameless=true": {
+      "model": "chessboard:block/gomoku_board_cherry_frameless",
+      "y": 0
+    },
+    "facing=west,wood=cherry,frameless=true": {
+      "model": "chessboard:block/gomoku_board_cherry_frameless",
+      "y": 90
+    },
+    "facing=north,wood=cherry,frameless=true": {
+      "model": "chessboard:block/gomoku_board_cherry_frameless",
+      "y": 180
+    },
+    "facing=east,wood=cherry,frameless=true": {
+      "model": "chessboard:block/gomoku_board_cherry_frameless",
+      "y": 270
+    },
+    "facing=south,wood=pale_oak,frameless=false": {
+      "model": "chessboard:block/gomoku_board_pale_oak",
+      "y": 0
+    },
+    "facing=west,wood=pale_oak,frameless=false": {
+      "model": "chessboard:block/gomoku_board_pale_oak",
+      "y": 90
+    },
+    "facing=north,wood=pale_oak,frameless=false": {
+      "model": "chessboard:block/gomoku_board_pale_oak",
+      "y": 180
+    },
+    "facing=east,wood=pale_oak,frameless=false": {
+      "model": "chessboard:block/gomoku_board_pale_oak",
+      "y": 270
+    },
+    "facing=south,wood=pale_oak,frameless=true": {
+      "model": "chessboard:block/gomoku_board_pale_oak_frameless",
+      "y": 0
+    },
+    "facing=west,wood=pale_oak,frameless=true": {
+      "model": "chessboard:block/gomoku_board_pale_oak_frameless",
+      "y": 90
+    },
+    "facing=north,wood=pale_oak,frameless=true": {
+      "model": "chessboard:block/gomoku_board_pale_oak_frameless",
+      "y": 180
+    },
+    "facing=east,wood=pale_oak,frameless=true": {
+      "model": "chessboard:block/gomoku_board_pale_oak_frameless",
+      "y": 270
+    }
   }
 }

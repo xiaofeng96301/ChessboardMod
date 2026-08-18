@@ -1,0 +1,7 @@
+{
+  "parent": "chessboard:block/board",
+  "textures": {
+    "0": "chessboard:block/tictactoe_board",
+    "2": "minecraft:block/stripped_acacia_log"
+  }
+}

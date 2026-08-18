@@ -1,0 +1,27 @@
+{
+  "type": "minecraft:stonecutting",
+  "ingredient": [
+    "minecraft:stripped_pale_oak_log",
+    "minecraft:stripped_pale_oak_wood"
+  ],
+  "result": {
+    "id": "chessboard:tictactoe_board",
+    "components": {
+      "minecraft:block_state": {
+        "wood": "pale_oak",
+        "frameless": "true"
+      },
+      "minecraft:custom_model_data": {
+        "floats": [
+          13.0
+        ],
+        "flags": [],
+        "strings": [],
+        "colors": []
+      },
+      "minecraft:custom_name": {
+        "translate": "item.chessboard.variant.tictactoe_board_pale_oak_frameless"
+      }
+    }
+  }
+}

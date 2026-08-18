@@ -1,0 +1,27 @@
+{
+  "type": "minecraft:stonecutting",
+  "ingredient": [
+    "minecraft:stripped_oak_log",
+    "minecraft:stripped_oak_wood"
+  ],
+  "result": {
+    "id": "chessboard:chess_board",
+    "components": {
+      "minecraft:block_state": {
+        "wood": "oak",
+        "frameless": "true"
+      },
+      "minecraft:custom_model_data": {
+        "floats": [
+          1.0
+        ],
+        "flags": [],
+        "strings": [],
+        "colors": []
+      },
+      "minecraft:custom_name": {
+        "translate": "item.chessboard.variant.chess_board_oak_frameless"
+      }
+    }
+  }
+}

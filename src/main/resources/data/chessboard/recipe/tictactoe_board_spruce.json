@@ -1,0 +1,27 @@
+{
+  "type": "minecraft:stonecutting",
+  "ingredient": [
+    "minecraft:stripped_spruce_log",
+    "minecraft:stripped_spruce_wood"
+  ],
+  "result": {
+    "id": "chessboard:tictactoe_board",
+    "components": {
+      "minecraft:block_state": {
+        "wood": "spruce",
+        "frameless": "false"
+      },
+      "minecraft:custom_model_data": {
+        "floats": [
+          2.0
+        ],
+        "flags": [],
+        "strings": [],
+        "colors": []
+      },
+      "minecraft:custom_name": {
+        "translate": "item.chessboard.variant.tictactoe_board_spruce"
+      }
+    }
+  }
+}

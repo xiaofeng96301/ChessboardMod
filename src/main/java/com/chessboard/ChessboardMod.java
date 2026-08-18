@@ -1,5 +1,6 @@
 package com.chessboard;
 
+import com.chessboard.block.ChessWood;
 import com.chessboard.block.ChessboardBlock;
 import com.chessboard.blockentity.ChessboardBlockEntity;
 import com.chessboard.game.ChessLogic;
@@ -12,10 +13,14 @@ import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import net.minecraft.commands.Commands;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.CreativeModeTab;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.component.BlockItemStateProperties;
+import net.minecraft.world.item.component.CustomModelData;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.entity.BlockEntityType;
@@ -47,19 +52,19 @@ public class ChessboardMod {
 
     static final DeferredBlock<ChessboardBlock> CHINESE_CHESSBOARD = BLOCKS.registerBlock(
             "chinese_chessboard",
-            p -> new ChessboardBlock(p, ChineseChessLogic.INSTANCE),
+            p -> new ChessboardBlock(p, ChineseChessLogic.INSTANCE, new ChineseChessLogic(1.115f, 13.77f)),
             p -> p.mapColor(MapColor.WOOD).strength(2f, 3f).sound(SoundType.WOOD).noOcclusion());
     static final DeferredBlock<ChessboardBlock> GOMOKU_BOARD = BLOCKS.registerBlock(
             "gomoku_board",
-            p -> new ChessboardBlock(p, GomokuLogic.INSTANCE),
+            p -> new ChessboardBlock(p, GomokuLogic.INSTANCE, new GomokuLogic(1.115f, 13.77f)),
             p -> p.mapColor(MapColor.WOOD).strength(2f, 3f).sound(SoundType.WOOD).noOcclusion());
     static final DeferredBlock<ChessboardBlock> TICTACTOE_BOARD = BLOCKS.registerBlock(
             "tictactoe_board",
-            p -> new ChessboardBlock(p, TicTacToeLogic.INSTANCE),
+            p -> new ChessboardBlock(p, TicTacToeLogic.INSTANCE, new TicTacToeLogic(3.28f, 9.34f)),
             p -> p.mapColor(MapColor.WOOD).strength(2f, 3f).sound(SoundType.WOOD).noOcclusion());
     static final DeferredBlock<ChessboardBlock> CHESS_BOARD = BLOCKS.registerBlock(
             "chess_board",
-            p -> new ChessboardBlock(p, ChessLogic.INSTANCE),
+            p -> new ChessboardBlock(p, ChessLogic.INSTANCE, new ChessLogic(2.0f, 12.0f)),
             p -> p.mapColor(MapColor.WOOD).strength(2f, 3f).sound(SoundType.WOOD).noOcclusion());
 
     // 棋子模型方块（纯渲染用）
@@ -118,15 +123,53 @@ public class ChessboardMod {
     static final DeferredItem<BlockItem> TICTACTOE_BOARD_ITEM = ITEMS.registerSimpleBlockItem(TICTACTOE_BOARD);
     static final DeferredItem<BlockItem> CHESS_BOARD_ITEM = ITEMS.registerSimpleBlockItem(CHESS_BOARD);
 
+    /** 变体索引：wood*2 + frameless，供物品模型 custom_model_data 切换 */
+    static int variantIndex(ChessWood wood, boolean frameless) {
+        return wood.ordinal() * 2 + (frameless ? 1 : 0);
+    }
+
+    /** 变体物品翻译 key（custom_name 用） */
+    static String variantLangKey(DeferredItem<BlockItem> item, ChessWood wood, boolean frameless) {
+        return "item.chessboard.variant." + item.getId().getPath()
+                + "_" + wood.getSerializedName() + (frameless ? "_frameless" : "");
+    }
+
+    /** 生成棋盘变体物品（block_state + custom_model_data + custom_name 组件） */
+    private static ItemStack boardVariant(DeferredItem<BlockItem> item, ChessWood wood, boolean frameless) {
+        BlockItemStateProperties props = BlockItemStateProperties.EMPTY
+                .with(ChessboardBlock.WOOD, wood)
+                .with(ChessboardBlock.FRAMELESS, frameless);
+        CustomModelData cmd = new CustomModelData(
+                java.util.List.of((float) variantIndex(wood, frameless)),
+                java.util.List.of(), java.util.List.of(), java.util.List.of());
+        ItemStack stack = new ItemStack(item.get());
+        stack.set(DataComponents.BLOCK_STATE, props);
+        stack.set(DataComponents.CUSTOM_MODEL_DATA, cmd);
+        stack.set(DataComponents.CUSTOM_NAME, Component.translatable(variantLangKey(item, wood, frameless)));
+        return stack;
+    }
+
+    /** 向标签页输出基础物品（橡木带框）+ 其余变体（跳橡木带框，避免重复） */
+    private static void addBoardVariants(CreativeModeTab.Output output, DeferredItem<BlockItem> item) {
+        output.accept(item);
+        for (ChessWood w : ChessWood.values()) {
+            if (w == ChessWood.OAK) continue;
+            output.accept(boardVariant(item, w, false));
+        }
+        for (ChessWood w : ChessWood.values()) {
+            output.accept(boardVariant(item, w, true));
+        }
+    }
+
     public static final DeferredHolder<CreativeModeTab, CreativeModeTab> CHESSBOARD_TAB =
             TABS.register("chessboard_tab", () -> CreativeModeTab.builder()
                     .title(Component.translatable("itemGroup.chessboard"))
                     .icon(() -> CHINESE_CHESSBOARD_ITEM.get().getDefaultInstance())
                     .displayItems((params, output) -> {
-                        output.accept(CHINESE_CHESSBOARD_ITEM);
-                        output.accept(CHESS_BOARD_ITEM);
-                        output.accept(GOMOKU_BOARD_ITEM);
-                        output.accept(TICTACTOE_BOARD_ITEM);
+                        addBoardVariants(output, CHINESE_CHESSBOARD_ITEM);
+                        addBoardVariants(output, CHESS_BOARD_ITEM);
+                        addBoardVariants(output, GOMOKU_BOARD_ITEM);
+                        addBoardVariants(output, TICTACTOE_BOARD_ITEM);
                     })
                     .build());
 

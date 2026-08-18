@@ -22,6 +22,7 @@ import java.util.List;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
+import net.minecraft.world.level.block.state.properties.BooleanProperty;
 import net.minecraft.world.level.block.state.properties.EnumProperty;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.shapes.CollisionContext;
@@ -32,34 +33,50 @@ import java.util.function.Consumer;
 
 /**
  * 通用棋盘方块 —— 框架层。
- * 棋盘为 1/16 格厚的薄板，支持水平朝向。
- * 子类构造时传入游戏逻辑。
+ * 棋盘为 1/16 格厚的薄板，支持水平朝向、木种（WOOD）与无框（FRAMELESS）变体。
+ * 构造时传入带框/无框两套游戏逻辑（格子参数不同）。
  */
 public class ChessboardBlock extends BaseEntityBlock {
 
-    public static final MapCodec<ChessboardBlock> CODEC = simpleCodec(p -> new ChessboardBlock(p, null));
+    public static final MapCodec<ChessboardBlock> CODEC = simpleCodec(p -> new ChessboardBlock(p, null, null));
     public static final EnumProperty<Direction> FACING = BlockStateProperties.HORIZONTAL_FACING;
-    private static final VoxelShape SHAPE = Shapes.box(0, 0, 0, 1, 1.0 / 16.0, 1);
+    public static final EnumProperty<ChessWood> WOOD = EnumProperty.create("wood", ChessWood.class);
+    public static final BooleanProperty FRAMELESS = BooleanProperty.create("frameless");
+
+    private static final VoxelShape SHAPE_FRAMED = Shapes.box(0, 0, 0, 1, 1.0 / 16.0, 1);
+    private static final VoxelShape SHAPE_FRAMELESS = Shapes.box(0.5 / 16.0, 0, 0.5 / 16.0, 15.5 / 16.0, 1.0 / 16.0, 15.5 / 16.0);
 
     private final com.chessboard.game.BoardGameLogic gameLogic;
+    private final com.chessboard.game.BoardGameLogic framelessLogic;
 
     /** 客户端注入：Shift+右键打开管理界面的动作 */
     public static Consumer<BlockPos> openScreenAction = pos -> {};
 
-    public ChessboardBlock(Properties props, com.chessboard.game.BoardGameLogic gameLogic) {
+    public ChessboardBlock(Properties props, com.chessboard.game.BoardGameLogic gameLogic,
+                           com.chessboard.game.BoardGameLogic framelessLogic) {
         super(props);
         this.gameLogic = gameLogic;
-        registerDefaultState(stateDefinition.any().setValue(FACING, Direction.SOUTH));
+        this.framelessLogic = framelessLogic;
+        registerDefaultState(stateDefinition.any()
+                .setValue(FACING, Direction.SOUTH)
+                .setValue(WOOD, ChessWood.OAK)
+                .setValue(FRAMELESS, false));
     }
 
-    public com.chessboard.game.BoardGameLogic getGameLogic() {
-        return gameLogic != null ? gameLogic : com.chessboard.game.ChineseChessLogic.INSTANCE;
+    /** 按方块状态（无框/带框）返回对应游戏逻辑 */
+    public com.chessboard.game.BoardGameLogic getGameLogic(BlockState state) {
+        com.chessboard.game.BoardGameLogic g = state.getValue(FRAMELESS) ? framelessLogic : gameLogic;
+        return g != null ? g : com.chessboard.game.ChineseChessLogic.INSTANCE;
     }
 
     @Override protected MapCodec<? extends BaseEntityBlock> codec() { return CODEC; }
-    @Override protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> b) { b.add(FACING); }
-    @Override public BlockState getStateForPlacement(BlockPlaceContext ctx) { return defaultBlockState().setValue(FACING, ctx.getHorizontalDirection()); }
-    @Override protected VoxelShape getShape(BlockState s, BlockGetter l, BlockPos p, CollisionContext c) { return SHAPE; }
+    @Override protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> b) { b.add(FACING, WOOD, FRAMELESS); }
+    @Override public BlockState getStateForPlacement(BlockPlaceContext ctx) {
+        return defaultBlockState().setValue(FACING, ctx.getHorizontalDirection());
+    }
+    @Override protected VoxelShape getShape(BlockState s, BlockGetter l, BlockPos p, CollisionContext c) {
+        return s.getValue(FRAMELESS) ? SHAPE_FRAMELESS : SHAPE_FRAMED;
+    }
     @Override public BlockEntity newBlockEntity(BlockPos pos, BlockState state) {
         return new ChessboardBlockEntity(pos, state);
     }
@@ -77,6 +94,22 @@ public class ChessboardBlock extends BaseEntityBlock {
             BlockEntity be = level.getBlockEntity(pos);
             if (be instanceof ChessboardBlockEntity board) {
                 ItemStack stack = new ItemStack(this);
+                // 保留木种/无框变体（放置状态、模型、名字）
+                ChessWood wood = state.getValue(WOOD);
+                boolean frameless = state.getValue(FRAMELESS);
+                net.minecraft.world.item.component.BlockItemStateProperties props =
+                        net.minecraft.world.item.component.BlockItemStateProperties.EMPTY
+                                .with(WOOD, wood)
+                                .with(FRAMELESS, frameless);
+                stack.set(net.minecraft.core.component.DataComponents.BLOCK_STATE, props);
+                net.minecraft.world.item.component.CustomModelData cmd = new net.minecraft.world.item.component.CustomModelData(
+                        java.util.List.of((float) (wood.ordinal() * 2 + (frameless ? 1 : 0))),
+                        java.util.List.of(), java.util.List.of(), java.util.List.of());
+                stack.set(net.minecraft.core.component.DataComponents.CUSTOM_MODEL_DATA, cmd);
+                stack.set(net.minecraft.core.component.DataComponents.CUSTOM_NAME,
+                        net.minecraft.network.chat.Component.translatable(
+                                "item.chessboard.variant." + asItem().builtInRegistryHolder().key().identifier().getPath()
+                                        + "_" + wood.getSerializedName() + (frameless ? "_frameless" : "")));
                 stack.applyComponents(board.collectComponents());
                 popResource(level, pos, stack);
                 level.removeBlockEntity(pos);

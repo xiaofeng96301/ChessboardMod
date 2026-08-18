@@ -1,0 +1,27 @@
+{
+  "type": "minecraft:stonecutting",
+  "ingredient": [
+    "minecraft:stripped_cherry_log",
+    "minecraft:stripped_cherry_wood"
+  ],
+  "result": {
+    "id": "chessboard:chess_board",
+    "components": {
+      "minecraft:block_state": {
+        "wood": "cherry",
+        "frameless": "true"
+      },
+      "minecraft:custom_model_data": {
+        "floats": [
+          11.0
+        ],
+        "flags": [],
+        "strings": [],
+        "colors": []
+      },
+      "minecraft:custom_name": {
+        "translate": "item.chessboard.variant.chess_board_cherry_frameless"
+      }
+    }
+  }
+}
