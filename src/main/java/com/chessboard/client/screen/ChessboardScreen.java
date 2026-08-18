@@ -86,7 +86,7 @@ public class ChessboardScreen extends Screen {
                     sendCmd("undo");
                     onClose();
                 })
-                .bounds(cx - 114, cy - 28, 100, 16).build());
+                .bounds(cx - 124, cy - 28, 144, 16).build());
 
         addRenderableWidget(Button.builder(rightClickMenuLabel(), btn -> {
                     Config.RIGHT_CLICK_OPENS_MENU.set(!Config.RIGHT_CLICK_OPENS_MENU.get());
