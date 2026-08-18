@@ -1,0 +1,25 @@
+{
+  "type": "minecraft:stonecutting",
+  "ingredient": [
+    "minecraft:polished_blackstone",
+    "minecraft:stripped_polished_blackstone_log"
+  ],
+  "result": {
+    "id": "chessboard:gomoku_board",
+    "components": {
+      "minecraft:block_state": {
+        "wood": "polished_blackstone",
+        "frameless": "false"
+      },
+      "minecraft:custom_model_data": {
+        "floats": [
+          22.0
+        ],
+        "flags": [],
+        "strings": [],
+        "colors": []
+      },
+      "minecraft:custom_name": "{\"translate\": \"item.chessboard.variant.gomoku_board_polished_blackstone\"}"
+    }
+  }
+}

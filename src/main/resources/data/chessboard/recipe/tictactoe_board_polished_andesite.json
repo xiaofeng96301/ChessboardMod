@@ -1,0 +1,25 @@
+{
+  "type": "minecraft:stonecutting",
+  "ingredient": [
+    "minecraft:polished_andesite",
+    "minecraft:stripped_polished_andesite_log"
+  ],
+  "result": {
+    "id": "chessboard:tictactoe_board",
+    "components": {
+      "minecraft:block_state": {
+        "wood": "polished_andesite",
+        "frameless": "false"
+      },
+      "minecraft:custom_model_data": {
+        "floats": [
+          18.0
+        ],
+        "flags": [],
+        "strings": [],
+        "colors": []
+      },
+      "minecraft:custom_name": "{\"translate\": \"item.chessboard.variant.tictactoe_board_polished_andesite\"}"
+    }
+  }
+}

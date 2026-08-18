@@ -1,0 +1,6 @@
+{
+  "parent": "chessboard:block/gomoku_pieces_white",
+  "textures": {
+    "1": "minecraft:block/polished_granite"
+  }
+}

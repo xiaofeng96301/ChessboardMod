@@ -1,0 +1,7 @@
+{
+  "parent": "chessboard:block/board",
+  "textures": {
+    "0": "chessboard:block/gomoku_board",
+    "2": "minecraft:block/polished_deepslate"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "type": "minecraft:stonecutting",
+  "ingredient": [
+    "minecraft:stripped_oak_log",
+    "minecraft:stripped_oak_wood"
+  ],
+  "result": {
+    "id": "chessboard:tictactoe_board"
+  }
+}

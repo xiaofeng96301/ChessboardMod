@@ -1,0 +1,7 @@
+{
+  "parent": "chessboard:block/board",
+  "textures": {
+    "0": "chessboard:block/chinese_chessboard",
+    "2": "minecraft:block/polished_granite"
+  }
+}

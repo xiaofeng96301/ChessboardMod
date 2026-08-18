@@ -1,0 +1,25 @@
+{
+  "type": "minecraft:stonecutting",
+  "ingredient": [
+    "minecraft:polished_deepslate",
+    "minecraft:stripped_polished_deepslate_log"
+  ],
+  "result": {
+    "id": "chessboard:tictactoe_board",
+    "components": {
+      "minecraft:block_state": {
+        "wood": "polished_deepslate",
+        "frameless": "true"
+      },
+      "minecraft:custom_model_data": {
+        "floats": [
+          21.0
+        ],
+        "flags": [],
+        "strings": [],
+        "colors": []
+      },
+      "minecraft:custom_name": "{\"translate\": \"item.chessboard.variant.tictactoe_board_polished_deepslate_frameless\"}"
+    }
+  }
+}

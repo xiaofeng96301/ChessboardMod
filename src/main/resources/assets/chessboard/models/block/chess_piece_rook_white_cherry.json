@@ -1,0 +1,6 @@
+{
+  "parent": "chessboard:block/chess_car_white",
+  "textures": {
+    "0": "minecraft:block/stripped_cherry_log"
+  }
+}

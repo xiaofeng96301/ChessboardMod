@@ -39,6 +39,8 @@ public class ChessboardBlockEntity extends BlockEntity {
     private int[] pieces;
     private int selRow = -1, selCol = -1;
     private final Deque<int[]> history = new ArrayDeque<>();
+    /** 棋子材质配置（6 槽位，null = 默认），保存在棋盘实体上 */
+    private String[] materials = new String[com.chessboard.MaterialData.SLOT_COUNT];
 
     public ChessboardBlockEntity(BlockPos pos, BlockState state) {
         super(TYPE, pos, state);
@@ -67,6 +69,15 @@ public class ChessboardBlockEntity extends BlockEntity {
     public int[] pieces() { gameLogic(); return pieces; }
     public int selRow() { return selRow; }
     public int selCol() { return selCol; }
+
+    public String material(int slot) { return materials[slot]; }
+    public String[] materials() { return materials; }
+
+    /** 设置材质并同步 */
+    public void setMaterial(int slot, String material) {
+        materials[slot] = material;
+        notifyChange();
+    }
     // ── 点击 ──
 
     public void handleClick(int clickRow, int clickCol) {
@@ -84,7 +95,6 @@ public class ChessboardBlockEntity extends BlockEntity {
                 history.push(new int[]{-1, -1, rw, cl, 0});
             }
             case ClickResult.None() -> {}
-            case ClickResult.Reset() -> resetBoard();
             case ClickResult.Flip(int rw, int cl) -> {
                 pieces[idx(rw, cl)] = com.chessboard.game.ChineseChessLogic.reveal(pieces[idx(rw, cl)]);
                 selRow = -1; selCol = -1;
@@ -206,6 +216,9 @@ public class ChessboardBlockEntity extends BlockEntity {
         out.putIntArray("pieces", pieces);
         out.putInt("selRow", selRow);
         out.putInt("selCol", selCol);
+        for (int i = 0; i < materials.length; i++) {
+            if (materials[i] != null) out.putString("mat" + i, materials[i]);
+        }
         int size = history.size();
         out.putInt("histSize", size);
         if (size > 0) out.putIntArray("history", flattenHistory());
@@ -220,6 +233,9 @@ public class ChessboardBlockEntity extends BlockEntity {
         else gameLogic().initBoard(pieces);
         selRow = in.getIntOr("selRow", -1);
         selCol = in.getIntOr("selCol", -1);
+        for (int i = 0; i < materials.length; i++) {
+            materials[i] = in.getString("mat" + i).orElse(null);
+        }
         int histSize = in.getIntOr("histSize", 0);
         if (histSize > 0) restoreHistory(in.getIntArray("history").orElse(null));
     }
@@ -231,6 +247,9 @@ public class ChessboardBlockEntity extends BlockEntity {
         tag.putIntArray("pieces", pieces);
         tag.putInt("selRow", selRow);
         tag.putInt("selCol", selCol);
+        for (int i = 0; i < materials.length; i++) {
+            if (materials[i] != null) tag.putString("mat" + i, materials[i]);
+        }
         return tag;
     }
 
@@ -242,6 +261,9 @@ public class ChessboardBlockEntity extends BlockEntity {
         if (loaded != null && loaded.length == pieces.length) System.arraycopy(loaded, 0, pieces, 0, pieces.length);
         selRow = in.getIntOr("selRow", -1);
         selCol = in.getIntOr("selCol", -1);
+        for (int i = 0; i < materials.length; i++) {
+            materials[i] = in.getString("mat" + i).orElse(null);
+        }
     }
 
     @Override
@@ -268,6 +290,9 @@ public class ChessboardBlockEntity extends BlockEntity {
         tag.putIntArray("pieces", pieces);
         tag.putInt("selRow", selRow);
         tag.putInt("selCol", selCol);
+        for (int i = 0; i < materials.length; i++) {
+            if (materials[i] != null) tag.putString("mat" + i, materials[i]);
+        }
         tag.putInt("histSize", history.size());
         int[] flat = flattenHistory();
         if (flat != null) tag.putIntArray("history", flat);
@@ -286,6 +311,9 @@ public class ChessboardBlockEntity extends BlockEntity {
         }
         selRow = tag.getInt("selRow").orElse(-1);
         selCol = tag.getInt("selCol").orElse(-1);
+        for (int i = 0; i < materials.length; i++) {
+            materials[i] = tag.contains("mat" + i) ? tag.getString("mat" + i).orElse(null) : null;
+        }
         int histSize = tag.getInt("histSize").orElse(0);
         if (histSize > 0 && tag.contains("history")) restoreHistory(tag.getIntArray("history").orElse(null));
     }

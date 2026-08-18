@@ -1,0 +1,6 @@
+{
+  "parent": "chessboard:block/chess_elephant_white",
+  "textures": {
+    "1": "minecraft:block/stripped_spruce_log"
+  }
+}

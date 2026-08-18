@@ -1,13 +1,17 @@
 package com.chessboard;
 
-import com.chessboard.block.ChessWood;
+import com.chessboard.block.ChessMaterial;
+import com.chessboard.block.ChessPieceBlock;
 import com.chessboard.block.ChessboardBlock;
 import com.chessboard.blockentity.ChessboardBlockEntity;
 import com.chessboard.game.ChessLogic;
 import com.chessboard.game.ChineseChessLogic;
 import com.chessboard.game.GomokuLogic;
 import com.chessboard.game.TicTacToeLogic;
+import com.chessboard.network.SetMaterialPayload;
 import java.util.Set;
+
+import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
@@ -21,7 +25,6 @@ import net.minecraft.world.item.CreativeModeTab;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.BlockItemStateProperties;
 import net.minecraft.world.item.component.CustomModelData;
-import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.material.MapColor;
@@ -67,46 +70,64 @@ public class ChessboardMod {
             p -> new ChessboardBlock(p, ChessLogic.INSTANCE, new ChessLogic(2.0f, 12.0f)),
             p -> p.mapColor(MapColor.WOOD).strength(2f, 3f).sound(SoundType.WOOD).noOcclusion());
 
-    // 棋子模型方块（纯渲染用）
-    public static final DeferredBlock<Block> CHESS_PIECE_MODEL = BLOCKS.registerSimpleBlock(
-            "chess_piece", p -> p.mapColor(MapColor.WOOD).noOcclusion());
-    public static final DeferredBlock<Block> CHINESE_PIECE_HIDDEN = BLOCKS.registerSimpleBlock(
-            "chinese_piece_hidden", p -> p.mapColor(MapColor.WOOD).noOcclusion());
-    public static final DeferredBlock<Block> GOMOKU_PIECE_BLACK = BLOCKS.registerSimpleBlock(
-            "gomoku_piece_black", p -> p.mapColor(MapColor.WOOD).noOcclusion());
-    public static final DeferredBlock<Block> GOMOKU_PIECE_WHITE = BLOCKS.registerSimpleBlock(
-            "gomoku_piece_white", p -> p.mapColor(MapColor.WOOD).noOcclusion());
-    public static final DeferredBlock<Block> GOMOKU_PIECE_GRAY = BLOCKS.registerSimpleBlock(
-            "gomoku_piece_gray", p -> p.mapColor(MapColor.WOOD).noOcclusion());
-    public static final DeferredBlock<Block> TICTACTOE_PIECE_MODEL = BLOCKS.registerSimpleBlock(
-            "tictactoe_piece", p -> p.mapColor(MapColor.WOOD).noOcclusion());
+    // 棋子模型方块（纯渲染用，带材质属性）
+    public static final DeferredBlock<ChessPieceBlock> CHESS_PIECE_MODEL = BLOCKS.registerBlock(
+            "chess_piece", ChessPieceBlock::new,
+            p -> p.mapColor(MapColor.WOOD).noOcclusion());
+    public static final DeferredBlock<ChessPieceBlock> CHINESE_PIECE_HIDDEN = BLOCKS.registerBlock(
+            "chinese_piece_hidden", ChessPieceBlock::new,
+            p -> p.mapColor(MapColor.WOOD).noOcclusion());
+    public static final DeferredBlock<ChessPieceBlock> GOMOKU_PIECE_BLACK = BLOCKS.registerBlock(
+            "gomoku_piece_black", ChessPieceBlock::new,
+            p -> p.mapColor(MapColor.WOOD).noOcclusion());
+    public static final DeferredBlock<ChessPieceBlock> GOMOKU_PIECE_WHITE = BLOCKS.registerBlock(
+            "gomoku_piece_white", ChessPieceBlock::new,
+            p -> p.mapColor(MapColor.WOOD).noOcclusion());
+    public static final DeferredBlock<ChessPieceBlock> GOMOKU_PIECE_GRAY = BLOCKS.registerBlock(
+            "gomoku_piece_gray", ChessPieceBlock::new,
+            p -> p.mapColor(MapColor.WOOD).noOcclusion());
+    public static final DeferredBlock<ChessPieceBlock> TICTACTOE_PIECE_MODEL = BLOCKS.registerBlock(
+            "tictactoe_piece", ChessPieceBlock::new,
+            p -> p.mapColor(MapColor.WOOD).noOcclusion());
 
     // 国际象棋棋子模型方块
-    public static final DeferredBlock<Block> CHESS_PIECE_KING = BLOCKS.registerSimpleBlock(
-            "chess_piece_king", p -> p.mapColor(MapColor.WOOD).noOcclusion());
-    public static final DeferredBlock<Block> CHESS_PIECE_QUEEN = BLOCKS.registerSimpleBlock(
-            "chess_piece_queen", p -> p.mapColor(MapColor.WOOD).noOcclusion());
-    public static final DeferredBlock<Block> CHESS_PIECE_BISHOP = BLOCKS.registerSimpleBlock(
-            "chess_piece_bishop", p -> p.mapColor(MapColor.WOOD).noOcclusion());
-    public static final DeferredBlock<Block> CHESS_PIECE_KNIGHT = BLOCKS.registerSimpleBlock(
-            "chess_piece_knight", p -> p.mapColor(MapColor.WOOD).noOcclusion());
-    public static final DeferredBlock<Block> CHESS_PIECE_ROOK = BLOCKS.registerSimpleBlock(
-            "chess_piece_rook", p -> p.mapColor(MapColor.WOOD).noOcclusion());
-    public static final DeferredBlock<Block> CHESS_PIECE_PAWN = BLOCKS.registerSimpleBlock(
-            "chess_piece_pawn", p -> p.mapColor(MapColor.WOOD).noOcclusion());
+    public static final DeferredBlock<ChessPieceBlock> CHESS_PIECE_KING = BLOCKS.registerBlock(
+            "chess_piece_king", ChessPieceBlock::new,
+            p -> p.mapColor(MapColor.WOOD).noOcclusion());
+    public static final DeferredBlock<ChessPieceBlock> CHESS_PIECE_QUEEN = BLOCKS.registerBlock(
+            "chess_piece_queen", ChessPieceBlock::new,
+            p -> p.mapColor(MapColor.WOOD).noOcclusion());
+    public static final DeferredBlock<ChessPieceBlock> CHESS_PIECE_BISHOP = BLOCKS.registerBlock(
+            "chess_piece_bishop", ChessPieceBlock::new,
+            p -> p.mapColor(MapColor.WOOD).noOcclusion());
+    public static final DeferredBlock<ChessPieceBlock> CHESS_PIECE_KNIGHT = BLOCKS.registerBlock(
+            "chess_piece_knight", ChessPieceBlock::new,
+            p -> p.mapColor(MapColor.WOOD).noOcclusion());
+    public static final DeferredBlock<ChessPieceBlock> CHESS_PIECE_ROOK = BLOCKS.registerBlock(
+            "chess_piece_rook", ChessPieceBlock::new,
+            p -> p.mapColor(MapColor.WOOD).noOcclusion());
+    public static final DeferredBlock<ChessPieceBlock> CHESS_PIECE_PAWN = BLOCKS.registerBlock(
+            "chess_piece_pawn", ChessPieceBlock::new,
+            p -> p.mapColor(MapColor.WOOD).noOcclusion());
 
-    public static final DeferredBlock<Block> CHESS_PIECE_KING_WHITE = BLOCKS.registerSimpleBlock(
-            "chess_piece_king_white", p -> p.mapColor(MapColor.WOOD).noOcclusion());
-    public static final DeferredBlock<Block> CHESS_PIECE_QUEEN_WHITE = BLOCKS.registerSimpleBlock(
-            "chess_piece_queen_white", p -> p.mapColor(MapColor.WOOD).noOcclusion());
-    public static final DeferredBlock<Block> CHESS_PIECE_BISHOP_WHITE = BLOCKS.registerSimpleBlock(
-            "chess_piece_bishop_white", p -> p.mapColor(MapColor.WOOD).noOcclusion());
-    public static final DeferredBlock<Block> CHESS_PIECE_KNIGHT_WHITE = BLOCKS.registerSimpleBlock(
-            "chess_piece_knight_white", p -> p.mapColor(MapColor.WOOD).noOcclusion());
-    public static final DeferredBlock<Block> CHESS_PIECE_ROOK_WHITE = BLOCKS.registerSimpleBlock(
-            "chess_piece_rook_white", p -> p.mapColor(MapColor.WOOD).noOcclusion());
-    public static final DeferredBlock<Block> CHESS_PIECE_PAWN_WHITE = BLOCKS.registerSimpleBlock(
-            "chess_piece_pawn_white", p -> p.mapColor(MapColor.WOOD).noOcclusion());
+    public static final DeferredBlock<ChessPieceBlock> CHESS_PIECE_KING_WHITE = BLOCKS.registerBlock(
+            "chess_piece_king_white", ChessPieceBlock::new,
+            p -> p.mapColor(MapColor.WOOD).noOcclusion());
+    public static final DeferredBlock<ChessPieceBlock> CHESS_PIECE_QUEEN_WHITE = BLOCKS.registerBlock(
+            "chess_piece_queen_white", ChessPieceBlock::new,
+            p -> p.mapColor(MapColor.WOOD).noOcclusion());
+    public static final DeferredBlock<ChessPieceBlock> CHESS_PIECE_BISHOP_WHITE = BLOCKS.registerBlock(
+            "chess_piece_bishop_white", ChessPieceBlock::new,
+            p -> p.mapColor(MapColor.WOOD).noOcclusion());
+    public static final DeferredBlock<ChessPieceBlock> CHESS_PIECE_KNIGHT_WHITE = BLOCKS.registerBlock(
+            "chess_piece_knight_white", ChessPieceBlock::new,
+            p -> p.mapColor(MapColor.WOOD).noOcclusion());
+    public static final DeferredBlock<ChessPieceBlock> CHESS_PIECE_ROOK_WHITE = BLOCKS.registerBlock(
+            "chess_piece_rook_white", ChessPieceBlock::new,
+            p -> p.mapColor(MapColor.WOOD).noOcclusion());
+    public static final DeferredBlock<ChessPieceBlock> CHESS_PIECE_PAWN_WHITE = BLOCKS.registerBlock(
+            "chess_piece_pawn_white", ChessPieceBlock::new,
+            p -> p.mapColor(MapColor.WOOD).noOcclusion());
 
     // 方块实体（所有棋盘共用一种类型）
     public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<ChessboardBlockEntity>> CHESSBOARD_BE =
@@ -124,18 +145,18 @@ public class ChessboardMod {
     static final DeferredItem<BlockItem> CHESS_BOARD_ITEM = ITEMS.registerSimpleBlockItem(CHESS_BOARD);
 
     /** 变体索引：wood*2 + frameless，供物品模型 custom_model_data 切换 */
-    static int variantIndex(ChessWood wood, boolean frameless) {
+    public static int variantIndex(ChessMaterial wood, boolean frameless) {
         return wood.ordinal() * 2 + (frameless ? 1 : 0);
     }
 
     /** 变体物品翻译 key（custom_name 用） */
-    static String variantLangKey(DeferredItem<BlockItem> item, ChessWood wood, boolean frameless) {
-        return "item.chessboard.variant." + item.getId().getPath()
+    public static String variantLangKey(String idPath, ChessMaterial wood, boolean frameless) {
+        return "item.chessboard.variant." + idPath
                 + "_" + wood.getSerializedName() + (frameless ? "_frameless" : "");
     }
 
     /** 生成棋盘变体物品（block_state + custom_model_data + custom_name 组件） */
-    private static ItemStack boardVariant(DeferredItem<BlockItem> item, ChessWood wood, boolean frameless) {
+    private static ItemStack boardVariant(DeferredItem<BlockItem> item, ChessMaterial wood, boolean frameless) {
         BlockItemStateProperties props = BlockItemStateProperties.EMPTY
                 .with(ChessboardBlock.WOOD, wood)
                 .with(ChessboardBlock.FRAMELESS, frameless);
@@ -145,18 +166,18 @@ public class ChessboardMod {
         ItemStack stack = new ItemStack(item.get());
         stack.set(DataComponents.BLOCK_STATE, props);
         stack.set(DataComponents.CUSTOM_MODEL_DATA, cmd);
-        stack.set(DataComponents.CUSTOM_NAME, Component.translatable(variantLangKey(item, wood, frameless)));
+        stack.set(DataComponents.CUSTOM_NAME, Component.translatable(variantLangKey(item.getId().getPath(), wood, frameless)));
         return stack;
     }
 
     /** 向标签页输出基础物品（橡木带框）+ 其余变体（跳橡木带框，避免重复） */
     private static void addBoardVariants(CreativeModeTab.Output output, DeferredItem<BlockItem> item) {
         output.accept(item);
-        for (ChessWood w : ChessWood.values()) {
-            if (w == ChessWood.OAK) continue;
+        for (ChessMaterial w : ChessMaterial.values()) {
+            if (w == ChessMaterial.OAK) continue;
             output.accept(boardVariant(item, w, false));
         }
-        for (ChessWood w : ChessWood.values()) {
+        for (ChessMaterial w : ChessMaterial.values()) {
             output.accept(boardVariant(item, w, true));
         }
     }
@@ -180,6 +201,21 @@ public class ChessboardMod {
         BLOCK_ENTITIES.register(modEventBus);
         NeoForge.EVENT_BUS.register(this);
         modContainer.registerConfig(ModConfig.Type.CLIENT, Config.CLIENT_SPEC);
+        modEventBus.addListener(ChessboardMod::registerPayloads);
+    }
+
+    /** 网络载荷注册：设置棋盘上的棋子材质（写方块实体，自动同步） */
+    private static void registerPayloads(RegisterPayloadHandlersEvent event) {
+        var registrar = event.registrar("1").optional();
+        registrar.playToServer(SetMaterialPayload.TYPE, SetMaterialPayload.STREAM_CODEC,
+                (payload, context) -> context.enqueueWork(() -> {
+                    var player = context.player();
+                    if (player == null) return;
+                    var level = player.level();
+                    if (level.getBlockEntity(payload.pos()) instanceof ChessboardBlockEntity be) {
+                        be.setMaterial(payload.slot(), payload.material());
+                    }
+                }));
     }
 
     @SubscribeEvent
@@ -205,6 +241,34 @@ public class ChessboardMod {
                                                                             }
                                                                             return 1;
                                                                         })))))))
+                        .then(Commands.literal("wood")
+                                .then(Commands.argument("x", IntegerArgumentType.integer())
+                                        .then(Commands.argument("y", IntegerArgumentType.integer())
+                                                .then(Commands.argument("z", IntegerArgumentType.integer())
+                                                        .then(Commands.argument("wood", StringArgumentType.word())
+                                                                .executes(ctx -> {
+                                                                    BlockPos pos = new BlockPos(
+                                                                            IntegerArgumentType.getInteger(ctx, "x"),
+                                                                            IntegerArgumentType.getInteger(ctx, "y"),
+                                                                            IntegerArgumentType.getInteger(ctx, "z"));
+                                                                    String woodName = StringArgumentType.getString(ctx, "wood");
+                                                                    var level = ctx.getSource().getLevel();
+                                                                    net.minecraft.world.level.block.state.BlockState cur = level.getBlockState(pos);
+                                                                    if (cur.getBlock() instanceof com.chessboard.block.ChessboardBlock
+                                                                            && cur.hasProperty(com.chessboard.block.ChessboardBlock.WOOD)) {
+                                                                        com.chessboard.block.ChessMaterial wood = null;
+                                                                        for (com.chessboard.block.ChessMaterial w : com.chessboard.block.ChessMaterial.values()) {
+                                                                            if (w.getSerializedName().equals(woodName)) { wood = w; break; }
+                                                                        }
+                                                                        if (wood != null) {
+                                                                            level.setBlock(pos, cur.setValue(com.chessboard.block.ChessboardBlock.WOOD, wood), 3);
+                                                                            ctx.getSource().sendSuccess(() -> Component.literal("棋盘木种已改为 " + woodName), true);
+                                                                            return 1;
+                                                                        }
+                                                                    }
+                                                                    ctx.getSource().sendFailure(Component.literal("无法修改该方块的木种"));
+                                                                    return 0;
+                                                                }))))))
                         .then(Commands.literal("undo")
                                 .then(Commands.argument("x", IntegerArgumentType.integer())
                                         .then(Commands.argument("y", IntegerArgumentType.integer())

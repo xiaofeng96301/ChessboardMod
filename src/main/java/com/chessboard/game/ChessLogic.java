@@ -15,8 +15,6 @@ public class ChessLogic implements BoardGameLogic {
     private final float offset;
     private final float span;
 
-    public ChessLogic() { this(1.9f, 12.2f); }
-
     public ChessLogic(float offset, float span) {
         this.offset = offset;
         this.span = span;
@@ -56,22 +54,6 @@ public class ChessLogic implements BoardGameLogic {
     @Override public float gridSpan() { return span; }
     @Override public float gridOffsetX() { return offset; }
     @Override public float gridOffsetZ() { return offset; }
-
-    @Override
-    public String pieceModelPath(int piece) {
-        if (piece == 0) return "";
-        int t = type(piece);
-        String suffix = side(piece) == 0 ? "_white" : "";
-        return switch (t) {
-            case KING -> "chessboard:block/chess_wang" + suffix;
-            case QUEEN -> "chessboard:block/chess_queen" + suffix;
-            case BISHOP -> "chessboard:block/chess_elephant" + suffix;
-            case KNIGHT -> "chessboard:block/chess_horse" + suffix;
-            case ROOK -> "chessboard:block/chess_car" + suffix;
-            case PAWN -> "chessboard:block/chess_soldier" + suffix;
-            default -> "";
-        };
-    }
 
     @Override
     public ClickResult onClick(int[] pieces, int selRow, int selCol, int clickRow, int clickCol) {

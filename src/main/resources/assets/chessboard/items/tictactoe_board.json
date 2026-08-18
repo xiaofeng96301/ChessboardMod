@@ -100,6 +100,76 @@
           "type": "minecraft:model",
           "model": "chessboard:block/tictactoe_board_pale_oak_frameless"
         }
+      },
+      {
+        "threshold": 14.0,
+        "model": {
+          "type": "minecraft:model",
+          "model": "chessboard:block/tictactoe_board_polished_granite"
+        }
+      },
+      {
+        "threshold": 15.0,
+        "model": {
+          "type": "minecraft:model",
+          "model": "chessboard:block/tictactoe_board_polished_granite_frameless"
+        }
+      },
+      {
+        "threshold": 16.0,
+        "model": {
+          "type": "minecraft:model",
+          "model": "chessboard:block/tictactoe_board_polished_diorite"
+        }
+      },
+      {
+        "threshold": 17.0,
+        "model": {
+          "type": "minecraft:model",
+          "model": "chessboard:block/tictactoe_board_polished_diorite_frameless"
+        }
+      },
+      {
+        "threshold": 18.0,
+        "model": {
+          "type": "minecraft:model",
+          "model": "chessboard:block/tictactoe_board_polished_andesite"
+        }
+      },
+      {
+        "threshold": 19.0,
+        "model": {
+          "type": "minecraft:model",
+          "model": "chessboard:block/tictactoe_board_polished_andesite_frameless"
+        }
+      },
+      {
+        "threshold": 20.0,
+        "model": {
+          "type": "minecraft:model",
+          "model": "chessboard:block/tictactoe_board_polished_deepslate"
+        }
+      },
+      {
+        "threshold": 21.0,
+        "model": {
+          "type": "minecraft:model",
+          "model": "chessboard:block/tictactoe_board_polished_deepslate_frameless"
+        }
+      },
+      {
+        "threshold": 22.0,
+        "model": {
+          "type": "minecraft:model",
+          "model": "chessboard:block/tictactoe_board_polished_blackstone"
+        }
+      },
+      {
+        "threshold": 23.0,
+        "model": {
+          "type": "minecraft:model",
+          "model": "chessboard:block/tictactoe_board_polished_blackstone_frameless"
+        }
       }
     ],
     "fallback": {

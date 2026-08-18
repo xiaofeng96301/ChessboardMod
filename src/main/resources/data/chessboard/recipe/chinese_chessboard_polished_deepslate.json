@@ -1,0 +1,25 @@
+{
+  "type": "minecraft:stonecutting",
+  "ingredient": [
+    "minecraft:polished_deepslate",
+    "minecraft:stripped_polished_deepslate_log"
+  ],
+  "result": {
+    "id": "chessboard:chinese_chessboard",
+    "components": {
+      "minecraft:block_state": {
+        "wood": "polished_deepslate",
+        "frameless": "false"
+      },
+      "minecraft:custom_model_data": {
+        "floats": [
+          20.0
+        ],
+        "flags": [],
+        "strings": [],
+        "colors": []
+      },
+      "minecraft:custom_name": "{\"translate\": \"item.chessboard.variant.chinese_chessboard_polished_deepslate\"}"
+    }
+  }
+}

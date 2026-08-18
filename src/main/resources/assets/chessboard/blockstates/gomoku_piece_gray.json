@@ -1,5 +1,40 @@
 {
   "variants": {
-    "": { "model": "chessboard:block/gomoku_pieces_gray" }
+    "material=oak": {
+      "model": "chessboard:block/gomoku_pieces_gray"
+    },
+    "material=spruce": {
+      "model": "chessboard:block/gomoku_piece_gray_spruce"
+    },
+    "material=birch": {
+      "model": "chessboard:block/gomoku_piece_gray_birch"
+    },
+    "material=acacia": {
+      "model": "chessboard:block/gomoku_piece_gray_acacia"
+    },
+    "material=dark_oak": {
+      "model": "chessboard:block/gomoku_piece_gray_dark_oak"
+    },
+    "material=cherry": {
+      "model": "chessboard:block/gomoku_piece_gray_cherry"
+    },
+    "material=pale_oak": {
+      "model": "chessboard:block/gomoku_piece_gray_pale_oak"
+    },
+    "material=polished_granite": {
+      "model": "chessboard:block/gomoku_piece_gray_polished_granite"
+    },
+    "material=polished_diorite": {
+      "model": "chessboard:block/gomoku_piece_gray_polished_diorite"
+    },
+    "material=polished_andesite": {
+      "model": "chessboard:block/gomoku_piece_gray_polished_andesite"
+    },
+    "material=polished_deepslate": {
+      "model": "chessboard:block/gomoku_piece_gray_polished_deepslate"
+    },
+    "material=polished_blackstone": {
+      "model": "chessboard:block/gomoku_piece_gray_polished_blackstone"
+    }
   }
 }

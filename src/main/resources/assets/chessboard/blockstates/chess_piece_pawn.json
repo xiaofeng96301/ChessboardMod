@@ -1,5 +1,40 @@
 {
   "variants": {
-    "": { "model": "chessboard:block/chess_soldier" }
+    "material=oak": {
+      "model": "chessboard:block/chess_soldier"
+    },
+    "material=spruce": {
+      "model": "chessboard:block/chess_piece_pawn_spruce"
+    },
+    "material=birch": {
+      "model": "chessboard:block/chess_piece_pawn_birch"
+    },
+    "material=acacia": {
+      "model": "chessboard:block/chess_piece_pawn_acacia"
+    },
+    "material=dark_oak": {
+      "model": "chessboard:block/chess_piece_pawn_dark_oak"
+    },
+    "material=cherry": {
+      "model": "chessboard:block/chess_piece_pawn_cherry"
+    },
+    "material=pale_oak": {
+      "model": "chessboard:block/chess_piece_pawn_pale_oak"
+    },
+    "material=polished_granite": {
+      "model": "chessboard:block/chess_piece_pawn_polished_granite"
+    },
+    "material=polished_diorite": {
+      "model": "chessboard:block/chess_piece_pawn_polished_diorite"
+    },
+    "material=polished_andesite": {
+      "model": "chessboard:block/chess_piece_pawn_polished_andesite"
+    },
+    "material=polished_deepslate": {
+      "model": "chessboard:block/chess_piece_pawn_polished_deepslate"
+    },
+    "material=polished_blackstone": {
+      "model": "chessboard:block/chess_piece_pawn_polished_blackstone"
+    }
   }
 }

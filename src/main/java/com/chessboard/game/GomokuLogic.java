@@ -14,8 +14,6 @@ public class GomokuLogic implements BoardGameLogic {
     private final float offset;
     private final float span;
 
-    public GomokuLogic() { this(1f, 14f); }
-
     public GomokuLogic(float offset, float span) {
         this.offset = offset;
         this.span = span;
@@ -52,14 +50,6 @@ public class GomokuLogic implements BoardGameLogic {
     @Override public float gridSpan() { return span; }
     @Override public float gridOffsetX() { return offset; }
     @Override public float gridOffsetZ() { return offset; }
-
-    @Override public String pieceModelPath(int piece) {
-        return switch (piece) {
-            case BLACK -> "chessboard:block/gomoku_pieces_black";
-            case GRAY -> "chessboard:block/gomoku_pieces_gray";
-            default -> "chessboard:block/gomoku_pieces_white";
-        };
-    }
 
     public static boolean isGray(int piece) { return piece == GRAY; }
 

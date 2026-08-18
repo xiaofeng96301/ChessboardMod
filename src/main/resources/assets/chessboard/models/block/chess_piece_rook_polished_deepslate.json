@@ -1,0 +1,6 @@
+{
+  "parent": "chessboard:block/chess_car",
+  "textures": {
+    "0": "minecraft:block/polished_deepslate"
+  }
+}

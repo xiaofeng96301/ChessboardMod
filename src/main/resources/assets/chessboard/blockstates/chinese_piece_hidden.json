@@ -1,5 +1,40 @@
 {
   "variants": {
-    "": { "model": "chessboard:block/chinese_chesspiece" }
+    "material=oak": {
+      "model": "chessboard:block/chinese_chesspiece"
+    },
+    "material=spruce": {
+      "model": "chessboard:block/chinese_piece_hidden_spruce"
+    },
+    "material=birch": {
+      "model": "chessboard:block/chinese_piece_hidden_birch"
+    },
+    "material=acacia": {
+      "model": "chessboard:block/chinese_piece_hidden_acacia"
+    },
+    "material=dark_oak": {
+      "model": "chessboard:block/chinese_piece_hidden_dark_oak"
+    },
+    "material=cherry": {
+      "model": "chessboard:block/chinese_piece_hidden_cherry"
+    },
+    "material=pale_oak": {
+      "model": "chessboard:block/chinese_piece_hidden_pale_oak"
+    },
+    "material=polished_granite": {
+      "model": "chessboard:block/chinese_piece_hidden_polished_granite"
+    },
+    "material=polished_diorite": {
+      "model": "chessboard:block/chinese_piece_hidden_polished_diorite"
+    },
+    "material=polished_andesite": {
+      "model": "chessboard:block/chinese_piece_hidden_polished_andesite"
+    },
+    "material=polished_deepslate": {
+      "model": "chessboard:block/chinese_piece_hidden_polished_deepslate"
+    },
+    "material=polished_blackstone": {
+      "model": "chessboard:block/chinese_piece_hidden_polished_blackstone"
+    }
   }
 }

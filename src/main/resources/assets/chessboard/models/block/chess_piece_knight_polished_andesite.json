@@ -1,0 +1,6 @@
+{
+  "parent": "chessboard:block/chess_horse",
+  "textures": {
+    "0": "minecraft:block/polished_andesite"
+  }
+}

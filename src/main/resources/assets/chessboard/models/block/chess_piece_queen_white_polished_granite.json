@@ -1,0 +1,6 @@
+{
+  "parent": "chessboard:block/chess_queen_white",
+  "textures": {
+    "1": "minecraft:block/polished_granite"
+  }
+}

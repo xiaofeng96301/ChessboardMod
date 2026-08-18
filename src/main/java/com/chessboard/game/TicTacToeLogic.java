@@ -17,8 +17,6 @@ public class TicTacToeLogic implements BoardGameLogic {
     private final float span;
     private int nextSide = 0;
 
-    public TicTacToeLogic() { this(3.2f, 9.5f); }
-
     public TicTacToeLogic(float offset, float span) {
         this.offset = offset;
         this.span = span;
@@ -43,10 +41,6 @@ public class TicTacToeLogic implements BoardGameLogic {
     @Override public float gridSpan() { return span; }
     @Override public float gridOffsetX() { return offset; }
     @Override public float gridOffsetZ() { return offset; }
-
-    @Override public String pieceModelPath(int piece) {
-        return "chessboard:block/tictactoe_pieces";
-    }
 
     @Override public boolean pieceFlipX(int piece) { return piece == X; }
     @Override public float pieceHeight() { return 1.002f / 16f; }

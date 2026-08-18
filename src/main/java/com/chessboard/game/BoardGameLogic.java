@@ -23,9 +23,6 @@ public interface BoardGameLogic {
     /** 获取棋子阵营（0=红/先手, 1=黑/后手） */
     int side(int piece);
 
-    /** 棋子模型资源路径（根据棋子值），用于渲染时加载方块模型 */
-    String pieceModelPath(int piece);
-
     /** 棋子缩放比例（默认 0.25） */
     default float pieceScale() { return 0.25f; }
 
@@ -52,6 +49,17 @@ public interface BoardGameLogic {
     default float pieceTextOffsetX() { return 0.5f; }
     /** 文字前后偏移（像素，默认 0.5） */
     default float pieceTextOffsetZ() { return 0.5f; }
+    /** 文字缩放（默认 0.006） */
+    default float pieceTextScale() { return 0.006f; }
+
+    /** 选中棋子抬升高度（格，默认 0.045） */
+    default float pieceLift() { return 0.045f; }
+    /** 选中抬升动画时长（毫秒，默认 150） */
+    default int pieceLiftMs() { return 150; }
+    /** 走棋移动动画时长（毫秒，默认 250） */
+    default int pieceMoveMs() { return 250; }
+    /** 暗棋翻面动画时长（毫秒，默认 300） */
+    default int pieceFlipMs() { return 300; }
 
     /** 棋类代码前缀，用于导入导出 */
     String codePrefix();
@@ -108,7 +116,7 @@ public interface BoardGameLogic {
 
     // ── 结果类型 ──
 
-    sealed interface ClickResult permits ClickResult.None, ClickResult.Select, ClickResult.Move, ClickResult.Place, ClickResult.Reset, ClickResult.Flip {
+    sealed interface ClickResult permits ClickResult.None, ClickResult.Select, ClickResult.Move, ClickResult.Place, ClickResult.Flip {
         /** 无效点击，没有任何变化 */
         record None() implements ClickResult {}
 
@@ -120,9 +128,6 @@ public interface BoardGameLogic {
 
         /** 在 (row, col) 放置了一颗新棋子 */
         record Place(int row, int col) implements ClickResult {}
-
-        /** 请求重置棋盘 */
-        record Reset() implements ClickResult {}
 
         /** 翻开 (row, col) 处的暗棋 */
         record Flip(int row, int col) implements ClickResult {}

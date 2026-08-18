@@ -1,0 +1,6 @@
+{
+  "parent": "chessboard:block/chinese_chesspiece",
+  "textures": {
+    "1": "minecraft:block/stripped_dark_oak_log"
+  }
+}

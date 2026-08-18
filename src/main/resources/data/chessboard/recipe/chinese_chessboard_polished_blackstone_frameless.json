@@ -1,0 +1,25 @@
+{
+  "type": "minecraft:stonecutting",
+  "ingredient": [
+    "minecraft:polished_blackstone",
+    "minecraft:stripped_polished_blackstone_log"
+  ],
+  "result": {
+    "id": "chessboard:chinese_chessboard",
+    "components": {
+      "minecraft:block_state": {
+        "wood": "polished_blackstone",
+        "frameless": "true"
+      },
+      "minecraft:custom_model_data": {
+        "floats": [
+          23.0
+        ],
+        "flags": [],
+        "strings": [],
+        "colors": []
+      },
+      "minecraft:custom_name": "{\"translate\": \"item.chessboard.variant.chinese_chessboard_polished_blackstone_frameless\"}"
+    }
+  }
+}

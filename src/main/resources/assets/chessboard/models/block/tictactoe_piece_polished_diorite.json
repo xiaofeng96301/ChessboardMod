@@ -1,0 +1,6 @@
+{
+  "parent": "chessboard:block/tictactoe_pieces",
+  "textures": {
+    "0": "minecraft:block/polished_diorite"
+  }
+}

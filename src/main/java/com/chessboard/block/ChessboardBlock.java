@@ -1,5 +1,6 @@
 package com.chessboard.block;
 
+import net.minecraft.world.level.block.state.BlockBehaviour.Properties;
 import com.chessboard.blockentity.ChessboardBlockEntity;
 import com.mojang.serialization.MapCodec;
 import net.minecraft.core.BlockPos;
@@ -40,7 +41,8 @@ public class ChessboardBlock extends BaseEntityBlock {
 
     public static final MapCodec<ChessboardBlock> CODEC = simpleCodec(p -> new ChessboardBlock(p, null, null));
     public static final EnumProperty<Direction> FACING = BlockStateProperties.HORIZONTAL_FACING;
-    public static final EnumProperty<ChessWood> WOOD = EnumProperty.create("wood", ChessWood.class);
+    /** 棋盘材质（剥皮木头 + 磨制石），属性名沿用 "wood" */
+    public static final EnumProperty<ChessMaterial> WOOD = EnumProperty.create("wood", ChessMaterial.class);
     public static final BooleanProperty FRAMELESS = BooleanProperty.create("frameless");
 
     private static final VoxelShape SHAPE_FRAMED = Shapes.box(0, 0, 0, 1, 1.0 / 16.0, 1);
@@ -59,7 +61,7 @@ public class ChessboardBlock extends BaseEntityBlock {
         this.framelessLogic = framelessLogic;
         registerDefaultState(stateDefinition.any()
                 .setValue(FACING, Direction.SOUTH)
-                .setValue(WOOD, ChessWood.OAK)
+                .setValue(WOOD, ChessMaterial.OAK)
                 .setValue(FRAMELESS, false));
     }
 
@@ -95,7 +97,7 @@ public class ChessboardBlock extends BaseEntityBlock {
             if (be instanceof ChessboardBlockEntity board) {
                 ItemStack stack = new ItemStack(this);
                 // 保留木种/无框变体（放置状态、模型、名字）
-                ChessWood wood = state.getValue(WOOD);
+                ChessMaterial wood = state.getValue(WOOD);
                 boolean frameless = state.getValue(FRAMELESS);
                 net.minecraft.world.item.component.BlockItemStateProperties props =
                         net.minecraft.world.item.component.BlockItemStateProperties.EMPTY
@@ -103,13 +105,14 @@ public class ChessboardBlock extends BaseEntityBlock {
                                 .with(FRAMELESS, frameless);
                 stack.set(net.minecraft.core.component.DataComponents.BLOCK_STATE, props);
                 net.minecraft.world.item.component.CustomModelData cmd = new net.minecraft.world.item.component.CustomModelData(
-                        java.util.List.of((float) (wood.ordinal() * 2 + (frameless ? 1 : 0))),
+                        java.util.List.of((float) com.chessboard.ChessboardMod.variantIndex(wood, frameless)),
                         java.util.List.of(), java.util.List.of(), java.util.List.of());
                 stack.set(net.minecraft.core.component.DataComponents.CUSTOM_MODEL_DATA, cmd);
                 stack.set(net.minecraft.core.component.DataComponents.CUSTOM_NAME,
                         net.minecraft.network.chat.Component.translatable(
-                                "item.chessboard.variant." + asItem().builtInRegistryHolder().key().identifier().getPath()
-                                        + "_" + wood.getSerializedName() + (frameless ? "_frameless" : "")));
+                                com.chessboard.ChessboardMod.variantLangKey(
+                                        asItem().builtInRegistryHolder().key().identifier().getPath(),
+                                        wood, frameless)));
                 stack.applyComponents(board.collectComponents());
                 popResource(level, pos, stack);
                 level.removeBlockEntity(pos);

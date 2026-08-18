@@ -33,11 +33,6 @@ import java.util.Map;
  */
 public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEntity, ChessboardRenderer.ChessboardRenderState> {
 
-    private static final float LIFT = 0.045f;
-    private static final int LIFT_MS = 150;
-    private static final int MOVE_MS = 250;
-    private static final int FLIP_MS = 300;
-
     private final BlockModelResolver modelResolver;
     private final Font font;
     private final Map<BlockPos, AnimData> animMap = new HashMap<>();
@@ -56,24 +51,32 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
         int flipRow = -1, flipCol = -1;
     }
 
-    private BlockModelRenderState loadModel(BoardGameLogic g, int piece) {
+    private BlockModelRenderState loadModel(BoardGameLogic g, int piece, String[] materials) {
         var ms = new BlockModelRenderState();
-        var block = switch (g) {
-            case com.chessboard.game.ChineseChessLogic ccl -> com.chessboard.game.ChineseChessLogic.isHidden(piece)
-                    ? ChessboardMod.CHINESE_PIECE_HIDDEN.get()
-                    : ChessboardMod.CHESS_PIECE_MODEL.get();
+        var state = switch (g) {
+            case com.chessboard.game.ChineseChessLogic ccl -> withMaterial(
+                    com.chessboard.game.ChineseChessLogic.isHidden(piece)
+                            ? ChessboardMod.CHINESE_PIECE_HIDDEN.get()
+                            : ChessboardMod.CHESS_PIECE_MODEL.get(),
+                    materials, com.chessboard.MaterialData.SLOT_CHINESE);
             case com.chessboard.game.GomokuLogic gml -> {
-                if (com.chessboard.game.GomokuLogic.isGray(piece)) {
-                    yield ChessboardMod.GOMOKU_PIECE_GRAY.get();
-                }
-                yield gml.side(piece) == 0
-                        ? ChessboardMod.GOMOKU_PIECE_BLACK.get()
-                        : ChessboardMod.GOMOKU_PIECE_WHITE.get();
+                int slot = com.chessboard.game.GomokuLogic.isGray(piece)
+                        ? com.chessboard.MaterialData.SLOT_GOMOKU_GRAY
+                        : (gml.side(piece) == 0
+                                ? com.chessboard.MaterialData.SLOT_GOMOKU_BLACK
+                                : com.chessboard.MaterialData.SLOT_GOMOKU_WHITE);
+                var block = com.chessboard.game.GomokuLogic.isGray(piece)
+                        ? ChessboardMod.GOMOKU_PIECE_GRAY.get()
+                        : (gml.side(piece) == 0
+                                ? ChessboardMod.GOMOKU_PIECE_BLACK.get()
+                                : ChessboardMod.GOMOKU_PIECE_WHITE.get());
+                yield withMaterial(block, materials, slot);
             }
-            case com.chessboard.game.TicTacToeLogic ttt -> ChessboardMod.TICTACTOE_PIECE_MODEL.get();
+            case com.chessboard.game.TicTacToeLogic ttt -> ChessboardMod.TICTACTOE_PIECE_MODEL.get().defaultBlockState();
             case com.chessboard.game.ChessLogic cl -> {
                 boolean isWhite = cl.side(piece) == 0;
-                yield switch (com.chessboard.game.ChessLogic.type(piece)) {
+                int slot = isWhite ? com.chessboard.MaterialData.SLOT_CHESS_WHITE : com.chessboard.MaterialData.SLOT_CHESS_BLACK;
+                var block = switch (com.chessboard.game.ChessLogic.type(piece)) {
                     case com.chessboard.game.ChessLogic.KING -> isWhite ? ChessboardMod.CHESS_PIECE_KING_WHITE.get() : ChessboardMod.CHESS_PIECE_KING.get();
                     case com.chessboard.game.ChessLogic.QUEEN -> isWhite ? ChessboardMod.CHESS_PIECE_QUEEN_WHITE.get() : ChessboardMod.CHESS_PIECE_QUEEN.get();
                     case com.chessboard.game.ChessLogic.BISHOP -> isWhite ? ChessboardMod.CHESS_PIECE_BISHOP_WHITE.get() : ChessboardMod.CHESS_PIECE_BISHOP.get();
@@ -81,11 +84,22 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
                     case com.chessboard.game.ChessLogic.ROOK -> isWhite ? ChessboardMod.CHESS_PIECE_ROOK_WHITE.get() : ChessboardMod.CHESS_PIECE_ROOK.get();
                     default -> isWhite ? ChessboardMod.CHESS_PIECE_PAWN_WHITE.get() : ChessboardMod.CHESS_PIECE_PAWN.get();
                 };
+                yield withMaterial(block, materials, slot);
             }
-            default -> ChessboardMod.CHESS_PIECE_MODEL.get();
+            default -> ChessboardMod.CHESS_PIECE_MODEL.get().defaultBlockState();
         };
-        modelResolver.update(ms, block.defaultBlockState(), BlockDisplayContext.create());
+        modelResolver.update(ms, state, BlockDisplayContext.create());
         return ms;
+    }
+
+    /** 按棋盘上保存的材质配置选择棋子方块状态 */
+    private static net.minecraft.world.level.block.state.BlockState withMaterial(
+            com.chessboard.block.ChessPieceBlock block, String[] materials, int slot) {
+        String mat = materials != null && slot < materials.length ? materials[slot] : null;
+        com.chessboard.block.ChessMaterial m = mat != null
+                ? com.chessboard.block.ChessMaterial.byName(mat)
+                : com.chessboard.MaterialData.defaultMaterial(slot);
+        return block.defaultBlockState().setValue(com.chessboard.block.ChessPieceBlock.MATERIAL, m);
     }
 
     @Override
@@ -107,6 +121,9 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
         s.cols = g.cols();
         s.facing = entity.getBlockState().getValue(ChessboardBlock.FACING);
         s.logic = g;
+        if (s.materials == null || s.materials.length != com.chessboard.MaterialData.SLOT_COUNT)
+            s.materials = new String[com.chessboard.MaterialData.SLOT_COUNT];
+        System.arraycopy(entity.materials(), 0, s.materials, 0, com.chessboard.MaterialData.SLOT_COUNT);
 
         AnimData a = animMap.computeIfAbsent(entity.getBlockPos(), k -> new AnimData());
         if (a.prevPieces == null || a.prevPieces.length != total) a.prevPieces = new int[total];
@@ -150,15 +167,15 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
             a.selMs = now;
             a.prevSelRow = s.selRow; a.prevSelCol = s.selCol;
         }
-        float selT = Math.clamp((now - a.selMs) / (float) LIFT_MS, 0f, 1f);
-        s.lift = (s.selRow >= 0) ? LIFT * selT : 0;
-        s.unlift = LIFT * (1f - Math.clamp((now - a.unselMs) / (float) LIFT_MS, 0f, 1f));
-        s.moveT = Math.clamp((now - a.moveMs) / (float) MOVE_MS, 0f, 1f);
+        float selT = Math.clamp((now - a.selMs) / (float) g.pieceLiftMs(), 0f, 1f);
+        s.lift = (s.selRow >= 0) ? g.pieceLift() * selT : 0;
+        s.unlift = g.pieceLift() * (1f - Math.clamp((now - a.unselMs) / (float) g.pieceLiftMs(), 0f, 1f));
+        s.moveT = Math.clamp((now - a.moveMs) / (float) g.pieceMoveMs(), 0f, 1f);
         s.unselRow = a.unselRow; s.unselCol = a.unselCol;
         s.fromRow = a.fromRow; s.fromCol = a.fromCol;
         s.toRow = a.toRow; s.toCol = a.toCol;
         s.flipRow = a.flipRow; s.flipCol = a.flipCol;
-        s.flipT = Math.clamp((now - a.flipMs) / (float) FLIP_MS, 0f, 1f);
+        s.flipT = Math.clamp((now - a.flipMs) / (float) g.pieceFlipMs(), 0f, 1f);
     }
 
     @Override
@@ -177,7 +194,7 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
                 int modelPiece = (flipping && s.flipT < 0.5f)
                         ? com.chessboard.game.ChineseChessLogic.hide(piece)
                         : piece;
-                BlockModelRenderState model = loadModel(s.logic, modelPiece);
+                BlockModelRenderState model = loadModel(s.logic, modelPiece, s.materials);
                 boolean sel = (s.selRow == row && s.selCol == col);
                 float lift = sel ? s.lift : 0;
                 if (s.unselRow == row && s.unselCol == col && s.unlift > 0 && lift == 0) lift = s.unlift;
@@ -192,13 +209,13 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
         if (s.moveT < 1f && s.fromRow >= 0 && s.toRow >= 0) {
             int p = s.pieces[s.toRow * s.cols + s.toCol];
             if (p != 0) {
-                BlockModelRenderState mm = loadModel(s.logic, p);
+                BlockModelRenderState mm = loadModel(s.logic, p, s.materials);
                 float[] from = gridPos(s, s.fromRow, s.fromCol);
                 float[] to   = gridPos(s, s.toRow, s.toCol);
                 float wx = lerp(from[0], to[0], s.moveT);
                 float wz = lerp(from[1], to[1], s.moveT);
-                renderPiece(ps, collector, mm, wx, wz, s, LIFT * (1f - s.moveT), light, overlay, p, 0);
-                renderText(ps, collector, wx, wz, s, LIFT * (1f - s.moveT), light, p);
+                renderPiece(ps, collector, mm, wx, wz, s, s.logic.pieceLift() * (1f - s.moveT), light, overlay, p, 0);
+                renderText(ps, collector, wx, wz, s, s.logic.pieceLift() * (1f - s.moveT), light, p);
             }
         }
     }
@@ -238,7 +255,8 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
         }));
         if (s.logic.side(piece) != 0) ps.mulPose(Axis.YP.rotationDegrees(180));
         ps.mulPose(Axis.XP.rotationDegrees(90));
-        ps.scale(0.006f, 0.006f, 0.006f);
+        float ts = s.logic.pieceTextScale();
+        ps.scale(ts, ts, ts);
         float tx = -font.width(text) / 2f + s.logic.pieceTextOffsetX();
         float ty = -font.lineHeight / 2f + s.logic.pieceTextOffsetZ();
         cc.submitText(ps, tx, ty, text, false, Font.DisplayMode.POLYGON_OFFSET, light,
@@ -264,6 +282,7 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
         public int selRow = -1, selCol = -1, rows, cols;
         public Direction facing = Direction.SOUTH;
         public BoardGameLogic logic;
+        public String[] materials;
         public float lift, unlift, moveT = 1f;
         public int unselRow = -1, unselCol = -1;
         public int fromRow = -1, fromCol = -1, toRow = -1, toCol = -1;

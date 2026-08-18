@@ -1,0 +1,25 @@
+{
+  "type": "minecraft:stonecutting",
+  "ingredient": [
+    "minecraft:polished_granite",
+    "minecraft:stripped_polished_granite_log"
+  ],
+  "result": {
+    "id": "chessboard:chinese_chessboard",
+    "components": {
+      "minecraft:block_state": {
+        "wood": "polished_granite",
+        "frameless": "false"
+      },
+      "minecraft:custom_model_data": {
+        "floats": [
+          14.0
+        ],
+        "flags": [],
+        "strings": [],
+        "colors": []
+      },
+      "minecraft:custom_name": "{\"translate\": \"item.chessboard.variant.chinese_chessboard_polished_granite\"}"
+    }
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "parent": "chessboard:block/chess_soldier_white",
+  "textures": {
+    "0": "minecraft:block/stripped_pale_oak_log"
+  }
+}

@@ -1,5 +1,40 @@
 {
   "variants": {
-    "": { "model": "chessboard:block/chess_elephant" }
+    "material=oak": {
+      "model": "chessboard:block/chess_elephant"
+    },
+    "material=spruce": {
+      "model": "chessboard:block/chess_piece_bishop_spruce"
+    },
+    "material=birch": {
+      "model": "chessboard:block/chess_piece_bishop_birch"
+    },
+    "material=acacia": {
+      "model": "chessboard:block/chess_piece_bishop_acacia"
+    },
+    "material=dark_oak": {
+      "model": "chessboard:block/chess_piece_bishop_dark_oak"
+    },
+    "material=cherry": {
+      "model": "chessboard:block/chess_piece_bishop_cherry"
+    },
+    "material=pale_oak": {
+      "model": "chessboard:block/chess_piece_bishop_pale_oak"
+    },
+    "material=polished_granite": {
+      "model": "chessboard:block/chess_piece_bishop_polished_granite"
+    },
+    "material=polished_diorite": {
+      "model": "chessboard:block/chess_piece_bishop_polished_diorite"
+    },
+    "material=polished_andesite": {
+      "model": "chessboard:block/chess_piece_bishop_polished_andesite"
+    },
+    "material=polished_deepslate": {
+      "model": "chessboard:block/chess_piece_bishop_polished_deepslate"
+    },
+    "material=polished_blackstone": {
+      "model": "chessboard:block/chess_piece_bishop_polished_blackstone"
+    }
   }
 }

@@ -1,0 +1,25 @@
+{
+  "type": "minecraft:stonecutting",
+  "ingredient": [
+    "minecraft:polished_diorite",
+    "minecraft:stripped_polished_diorite_log"
+  ],
+  "result": {
+    "id": "chessboard:chinese_chessboard",
+    "components": {
+      "minecraft:block_state": {
+        "wood": "polished_diorite",
+        "frameless": "true"
+      },
+      "minecraft:custom_model_data": {
+        "floats": [
+          17.0
+        ],
+        "flags": [],
+        "strings": [],
+        "colors": []
+      },
+      "minecraft:custom_name": "{\"translate\": \"item.chessboard.variant.chinese_chessboard_polished_diorite_frameless\"}"
+    }
+  }
+}

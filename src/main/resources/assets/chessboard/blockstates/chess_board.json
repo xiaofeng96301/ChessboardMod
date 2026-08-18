@@ -223,6 +223,166 @@
     "facing=east,wood=pale_oak,frameless=true": {
       "model": "chessboard:block/chess_board_pale_oak_frameless",
       "y": 270
+    },
+    "facing=south,wood=polished_granite,frameless=false": {
+      "model": "chessboard:block/chess_board_polished_granite",
+      "y": 0
+    },
+    "facing=west,wood=polished_granite,frameless=false": {
+      "model": "chessboard:block/chess_board_polished_granite",
+      "y": 90
+    },
+    "facing=north,wood=polished_granite,frameless=false": {
+      "model": "chessboard:block/chess_board_polished_granite",
+      "y": 180
+    },
+    "facing=east,wood=polished_granite,frameless=false": {
+      "model": "chessboard:block/chess_board_polished_granite",
+      "y": 270
+    },
+    "facing=south,wood=polished_granite,frameless=true": {
+      "model": "chessboard:block/chess_board_polished_granite_frameless",
+      "y": 0
+    },
+    "facing=west,wood=polished_granite,frameless=true": {
+      "model": "chessboard:block/chess_board_polished_granite_frameless",
+      "y": 90
+    },
+    "facing=north,wood=polished_granite,frameless=true": {
+      "model": "chessboard:block/chess_board_polished_granite_frameless",
+      "y": 180
+    },
+    "facing=east,wood=polished_granite,frameless=true": {
+      "model": "chessboard:block/chess_board_polished_granite_frameless",
+      "y": 270
+    },
+    "facing=south,wood=polished_diorite,frameless=false": {
+      "model": "chessboard:block/chess_board_polished_diorite",
+      "y": 0
+    },
+    "facing=west,wood=polished_diorite,frameless=false": {
+      "model": "chessboard:block/chess_board_polished_diorite",
+      "y": 90
+    },
+    "facing=north,wood=polished_diorite,frameless=false": {
+      "model": "chessboard:block/chess_board_polished_diorite",
+      "y": 180
+    },
+    "facing=east,wood=polished_diorite,frameless=false": {
+      "model": "chessboard:block/chess_board_polished_diorite",
+      "y": 270
+    },
+    "facing=south,wood=polished_diorite,frameless=true": {
+      "model": "chessboard:block/chess_board_polished_diorite_frameless",
+      "y": 0
+    },
+    "facing=west,wood=polished_diorite,frameless=true": {
+      "model": "chessboard:block/chess_board_polished_diorite_frameless",
+      "y": 90
+    },
+    "facing=north,wood=polished_diorite,frameless=true": {
+      "model": "chessboard:block/chess_board_polished_diorite_frameless",
+      "y": 180
+    },
+    "facing=east,wood=polished_diorite,frameless=true": {
+      "model": "chessboard:block/chess_board_polished_diorite_frameless",
+      "y": 270
+    },
+    "facing=south,wood=polished_andesite,frameless=false": {
+      "model": "chessboard:block/chess_board_polished_andesite",
+      "y": 0
+    },
+    "facing=west,wood=polished_andesite,frameless=false": {
+      "model": "chessboard:block/chess_board_polished_andesite",
+      "y": 90
+    },
+    "facing=north,wood=polished_andesite,frameless=false": {
+      "model": "chessboard:block/chess_board_polished_andesite",
+      "y": 180
+    },
+    "facing=east,wood=polished_andesite,frameless=false": {
+      "model": "chessboard:block/chess_board_polished_andesite",
+      "y": 270
+    },
+    "facing=south,wood=polished_andesite,frameless=true": {
+      "model": "chessboard:block/chess_board_polished_andesite_frameless",
+      "y": 0
+    },
+    "facing=west,wood=polished_andesite,frameless=true": {
+      "model": "chessboard:block/chess_board_polished_andesite_frameless",
+      "y": 90
+    },
+    "facing=north,wood=polished_andesite,frameless=true": {
+      "model": "chessboard:block/chess_board_polished_andesite_frameless",
+      "y": 180
+    },
+    "facing=east,wood=polished_andesite,frameless=true": {
+      "model": "chessboard:block/chess_board_polished_andesite_frameless",
+      "y": 270
+    },
+    "facing=south,wood=polished_deepslate,frameless=false": {
+      "model": "chessboard:block/chess_board_polished_deepslate",
+      "y": 0
+    },
+    "facing=west,wood=polished_deepslate,frameless=false": {
+      "model": "chessboard:block/chess_board_polished_deepslate",
+      "y": 90
+    },
+    "facing=north,wood=polished_deepslate,frameless=false": {
+      "model": "chessboard:block/chess_board_polished_deepslate",
+      "y": 180
+    },
+    "facing=east,wood=polished_deepslate,frameless=false": {
+      "model": "chessboard:block/chess_board_polished_deepslate",
+      "y": 270
+    },
+    "facing=south,wood=polished_deepslate,frameless=true": {
+      "model": "chessboard:block/chess_board_polished_deepslate_frameless",
+      "y": 0
+    },
+    "facing=west,wood=polished_deepslate,frameless=true": {
+      "model": "chessboard:block/chess_board_polished_deepslate_frameless",
+      "y": 90
+    },
+    "facing=north,wood=polished_deepslate,frameless=true": {
+      "model": "chessboard:block/chess_board_polished_deepslate_frameless",
+      "y": 180
+    },
+    "facing=east,wood=polished_deepslate,frameless=true": {
+      "model": "chessboard:block/chess_board_polished_deepslate_frameless",
+      "y": 270
+    },
+    "facing=south,wood=polished_blackstone,frameless=false": {
+      "model": "chessboard:block/chess_board_polished_blackstone",
+      "y": 0
+    },
+    "facing=west,wood=polished_blackstone,frameless=false": {
+      "model": "chessboard:block/chess_board_polished_blackstone",
+      "y": 90
+    },
+    "facing=north,wood=polished_blackstone,frameless=false": {
+      "model": "chessboard:block/chess_board_polished_blackstone",
+      "y": 180
+    },
+    "facing=east,wood=polished_blackstone,frameless=false": {
+      "model": "chessboard:block/chess_board_polished_blackstone",
+      "y": 270
+    },
+    "facing=south,wood=polished_blackstone,frameless=true": {
+      "model": "chessboard:block/chess_board_polished_blackstone_frameless",
+      "y": 0
+    },
+    "facing=west,wood=polished_blackstone,frameless=true": {
+      "model": "chessboard:block/chess_board_polished_blackstone_frameless",
+      "y": 90
+    },
+    "facing=north,wood=polished_blackstone,frameless=true": {
+      "model": "chessboard:block/chess_board_polished_blackstone_frameless",
+      "y": 180
+    },
+    "facing=east,wood=polished_blackstone,frameless=true": {
+      "model": "chessboard:block/chess_board_polished_blackstone_frameless",
+      "y": 270
     }
   }
 }

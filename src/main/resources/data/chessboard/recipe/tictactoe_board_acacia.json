@@ -19,9 +19,7 @@
         "strings": [],
         "colors": []
       },
-      "minecraft:custom_name": {
-        "translate": "item.chessboard.variant.tictactoe_board_acacia"
-      }
+      "minecraft:custom_name": "{\"translate\": \"item.chessboard.variant.tictactoe_board_acacia\"}"
     }
   }
 }

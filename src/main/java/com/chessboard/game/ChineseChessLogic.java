@@ -17,8 +17,6 @@ public class ChineseChessLogic implements BoardGameLogic {
     private final float offset;
     private final float span;
 
-    public ChineseChessLogic() { this(1f, 14f); }
-
     public ChineseChessLogic(float offset, float span) {
         this.offset = offset;
         this.span = span;
@@ -95,12 +93,6 @@ public class ChineseChessLogic implements BoardGameLogic {
     // ── 文字位置（象棋默认值，按需调整）──
     @Override public float pieceTextHeight() { return 0.0161f; }
     @Override public float pieceTextOffsetX() { return 0.7f; }
-
-    @Override
-    public String pieceModelPath(int piece) {
-        if (piece == 0) return "";
-        return isHidden(piece) ? "chessboard:block/chinese_chesspiece_hidden" : "chessboard:block/chinese_chesspiece";
-    }
 
     /** 导出时揭开暗棋，避免隐藏位破坏编码 */
     @Override

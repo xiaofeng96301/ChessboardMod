@@ -1,0 +1,6 @@
+{
+  "parent": "chessboard:block/gomoku_pieces_white",
+  "textures": {
+    "1": "minecraft:block/stripped_cherry_log"
+  }
+}
