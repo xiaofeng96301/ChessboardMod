@@ -33,10 +33,17 @@ public enum ChessMaterial implements StringRepresentable {
     @Override
     public String getSerializedName() { return name; }
 
-    public static ChessMaterial byName(String name) {
+    /** 按序列名查找，找不到返回 null */
+    public static ChessMaterial find(String name) {
         for (ChessMaterial m : values()) {
             if (m.name.equals(name)) return m;
         }
-        return OAK;
+        return null;
+    }
+
+    /** 按序列名查找，找不到回退 OAK */
+    public static ChessMaterial byName(String name) {
+        ChessMaterial m = find(name);
+        return m != null ? m : OAK;
     }
 }

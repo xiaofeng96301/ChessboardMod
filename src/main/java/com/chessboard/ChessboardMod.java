@@ -4,17 +4,16 @@ import com.chessboard.block.ChessMaterial;
 import com.chessboard.block.ChessPieceBlock;
 import com.chessboard.block.ChessboardBlock;
 import com.chessboard.blockentity.ChessboardBlockEntity;
+import com.chessboard.game.BoardGameLogic;
 import com.chessboard.game.ChessLogic;
 import com.chessboard.game.ChineseChessLogic;
 import com.chessboard.game.GomokuLogic;
 import com.chessboard.game.TicTacToeLogic;
 import com.chessboard.network.SetMaterialPayload;
-import java.util.Set;
-
-import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
-
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
+import com.mojang.brigadier.builder.ArgumentBuilder;
+import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.component.DataComponents;
@@ -22,11 +21,14 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.CreativeModeTab;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.BlockItemStateProperties;
+import net.minecraft.world.level.ItemLike;
 import net.minecraft.world.item.component.CustomModelData;
 import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.MapColor;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -35,10 +37,16 @@ import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.config.ModConfig;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
+import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 import net.neoforged.neoforge.registries.DeferredBlock;
 import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredItem;
 import net.neoforged.neoforge.registries.DeferredRegister;
+
+import java.util.List;
+import java.util.Set;
+import java.util.function.Consumer;
+import java.util.function.Function;
 
 
 @Mod(ChessboardMod.MODID)
@@ -51,83 +59,53 @@ public class ChessboardMod {
     public static final DeferredRegister<CreativeModeTab> TABS = DeferredRegister.create(Registries.CREATIVE_MODE_TAB, MODID);
     public static final DeferredRegister<BlockEntityType<?>> BLOCK_ENTITIES = DeferredRegister.create(Registries.BLOCK_ENTITY_TYPE, MODID);
 
-    // ── 棋盘注册（去皮橡木）──
+    // ── 注册模板 ──
 
-    static final DeferredBlock<ChessboardBlock> CHINESE_CHESSBOARD = BLOCKS.registerBlock(
-            "chinese_chessboard",
-            p -> new ChessboardBlock(p, ChineseChessLogic.INSTANCE, new ChineseChessLogic(1.115f, 13.77f)),
-            p -> p.mapColor(MapColor.WOOD).strength(2f, 3f).sound(SoundType.WOOD).noOcclusion());
-    static final DeferredBlock<ChessboardBlock> GOMOKU_BOARD = BLOCKS.registerBlock(
-            "gomoku_board",
-            p -> new ChessboardBlock(p, GomokuLogic.INSTANCE, new GomokuLogic(1.115f, 13.77f)),
-            p -> p.mapColor(MapColor.WOOD).strength(2f, 3f).sound(SoundType.WOOD).noOcclusion());
-    static final DeferredBlock<ChessboardBlock> TICTACTOE_BOARD = BLOCKS.registerBlock(
-            "tictactoe_board",
-            p -> new ChessboardBlock(p, TicTacToeLogic.INSTANCE, new TicTacToeLogic(3.28f, 9.34f)),
-            p -> p.mapColor(MapColor.WOOD).strength(2f, 3f).sound(SoundType.WOOD).noOcclusion());
-    static final DeferredBlock<ChessboardBlock> CHESS_BOARD = BLOCKS.registerBlock(
-            "chess_board",
-            p -> new ChessboardBlock(p, ChessLogic.INSTANCE, new ChessLogic(2.0f, 12.0f)),
-            p -> p.mapColor(MapColor.WOOD).strength(2f, 3f).sound(SoundType.WOOD).noOcclusion());
+    /** 棋盘方块：木材质薄板，硬度 2，无碰撞遮挡 */
+    private static DeferredBlock<ChessboardBlock> registerBoard(String name, BoardGameLogic logic, BoardGameLogic framelessLogic) {
+        return BLOCKS.registerBlock(name,
+                p -> new ChessboardBlock(p, logic, framelessLogic),
+                p -> p.mapColor(MapColor.WOOD).strength(2f, 3f).sound(SoundType.WOOD).noOcclusion());
+    }
 
-    // 棋子模型方块（纯渲染用，带材质属性）
-    public static final DeferredBlock<ChessPieceBlock> CHESS_PIECE_MODEL = BLOCKS.registerBlock(
-            "chess_piece", ChessPieceBlock::new,
-            p -> p.mapColor(MapColor.WOOD).noOcclusion());
-    public static final DeferredBlock<ChessPieceBlock> CHINESE_PIECE_HIDDEN = BLOCKS.registerBlock(
-            "chinese_piece_hidden", ChessPieceBlock::new,
-            p -> p.mapColor(MapColor.WOOD).noOcclusion());
-    public static final DeferredBlock<ChessPieceBlock> GOMOKU_PIECE_BLACK = BLOCKS.registerBlock(
-            "gomoku_piece_black", ChessPieceBlock::new,
-            p -> p.mapColor(MapColor.WOOD).noOcclusion());
-    public static final DeferredBlock<ChessPieceBlock> GOMOKU_PIECE_WHITE = BLOCKS.registerBlock(
-            "gomoku_piece_white", ChessPieceBlock::new,
-            p -> p.mapColor(MapColor.WOOD).noOcclusion());
-    public static final DeferredBlock<ChessPieceBlock> GOMOKU_PIECE_GRAY = BLOCKS.registerBlock(
-            "gomoku_piece_gray", ChessPieceBlock::new,
-            p -> p.mapColor(MapColor.WOOD).noOcclusion());
-    public static final DeferredBlock<ChessPieceBlock> TICTACTOE_PIECE_MODEL = BLOCKS.registerBlock(
-            "tictactoe_piece", ChessPieceBlock::new,
-            p -> p.mapColor(MapColor.WOOD).noOcclusion());
+    /** 棋子模型方块：纯渲染用，无碰撞遮挡 */
+    private static DeferredBlock<ChessPieceBlock> registerPiece(String name) {
+        return BLOCKS.registerBlock(name, ChessPieceBlock::new, p -> p.mapColor(MapColor.WOOD).noOcclusion());
+    }
+
+    // ── 棋盘注册 ──
+
+    static final DeferredBlock<ChessboardBlock> CHINESE_CHESSBOARD = registerBoard(
+            "chinese_chessboard", ChineseChessLogic.INSTANCE, new ChineseChessLogic(1.115f, 13.77f));
+    static final DeferredBlock<ChessboardBlock> GOMOKU_BOARD = registerBoard(
+            "gomoku_board", GomokuLogic.INSTANCE, new GomokuLogic(1.115f, 13.77f));
+    static final DeferredBlock<ChessboardBlock> TICTACTOE_BOARD = registerBoard(
+            "tictactoe_board", TicTacToeLogic.INSTANCE, new TicTacToeLogic(3.28f, 9.34f));
+    static final DeferredBlock<ChessboardBlock> CHESS_BOARD = registerBoard(
+            "chess_board", ChessLogic.INSTANCE, new ChessLogic(2.0f, 12.0f));
+
+    // 棋子模型方块（带材质属性）
+    public static final DeferredBlock<ChessPieceBlock> CHESS_PIECE_MODEL = registerPiece("chess_piece");
+    public static final DeferredBlock<ChessPieceBlock> CHINESE_PIECE_HIDDEN = registerPiece("chinese_piece_hidden");
+    public static final DeferredBlock<ChessPieceBlock> GOMOKU_PIECE_BLACK = registerPiece("gomoku_piece_black");
+    public static final DeferredBlock<ChessPieceBlock> GOMOKU_PIECE_WHITE = registerPiece("gomoku_piece_white");
+    public static final DeferredBlock<ChessPieceBlock> GOMOKU_PIECE_GRAY = registerPiece("gomoku_piece_gray");
+    public static final DeferredBlock<ChessPieceBlock> TICTACTOE_PIECE_MODEL = registerPiece("tictactoe_piece");
 
     // 国际象棋棋子模型方块
-    public static final DeferredBlock<ChessPieceBlock> CHESS_PIECE_KING = BLOCKS.registerBlock(
-            "chess_piece_king", ChessPieceBlock::new,
-            p -> p.mapColor(MapColor.WOOD).noOcclusion());
-    public static final DeferredBlock<ChessPieceBlock> CHESS_PIECE_QUEEN = BLOCKS.registerBlock(
-            "chess_piece_queen", ChessPieceBlock::new,
-            p -> p.mapColor(MapColor.WOOD).noOcclusion());
-    public static final DeferredBlock<ChessPieceBlock> CHESS_PIECE_BISHOP = BLOCKS.registerBlock(
-            "chess_piece_bishop", ChessPieceBlock::new,
-            p -> p.mapColor(MapColor.WOOD).noOcclusion());
-    public static final DeferredBlock<ChessPieceBlock> CHESS_PIECE_KNIGHT = BLOCKS.registerBlock(
-            "chess_piece_knight", ChessPieceBlock::new,
-            p -> p.mapColor(MapColor.WOOD).noOcclusion());
-    public static final DeferredBlock<ChessPieceBlock> CHESS_PIECE_ROOK = BLOCKS.registerBlock(
-            "chess_piece_rook", ChessPieceBlock::new,
-            p -> p.mapColor(MapColor.WOOD).noOcclusion());
-    public static final DeferredBlock<ChessPieceBlock> CHESS_PIECE_PAWN = BLOCKS.registerBlock(
-            "chess_piece_pawn", ChessPieceBlock::new,
-            p -> p.mapColor(MapColor.WOOD).noOcclusion());
+    public static final DeferredBlock<ChessPieceBlock> CHESS_PIECE_KING = registerPiece("chess_piece_king");
+    public static final DeferredBlock<ChessPieceBlock> CHESS_PIECE_QUEEN = registerPiece("chess_piece_queen");
+    public static final DeferredBlock<ChessPieceBlock> CHESS_PIECE_BISHOP = registerPiece("chess_piece_bishop");
+    public static final DeferredBlock<ChessPieceBlock> CHESS_PIECE_KNIGHT = registerPiece("chess_piece_knight");
+    public static final DeferredBlock<ChessPieceBlock> CHESS_PIECE_ROOK = registerPiece("chess_piece_rook");
+    public static final DeferredBlock<ChessPieceBlock> CHESS_PIECE_PAWN = registerPiece("chess_piece_pawn");
 
-    public static final DeferredBlock<ChessPieceBlock> CHESS_PIECE_KING_WHITE = BLOCKS.registerBlock(
-            "chess_piece_king_white", ChessPieceBlock::new,
-            p -> p.mapColor(MapColor.WOOD).noOcclusion());
-    public static final DeferredBlock<ChessPieceBlock> CHESS_PIECE_QUEEN_WHITE = BLOCKS.registerBlock(
-            "chess_piece_queen_white", ChessPieceBlock::new,
-            p -> p.mapColor(MapColor.WOOD).noOcclusion());
-    public static final DeferredBlock<ChessPieceBlock> CHESS_PIECE_BISHOP_WHITE = BLOCKS.registerBlock(
-            "chess_piece_bishop_white", ChessPieceBlock::new,
-            p -> p.mapColor(MapColor.WOOD).noOcclusion());
-    public static final DeferredBlock<ChessPieceBlock> CHESS_PIECE_KNIGHT_WHITE = BLOCKS.registerBlock(
-            "chess_piece_knight_white", ChessPieceBlock::new,
-            p -> p.mapColor(MapColor.WOOD).noOcclusion());
-    public static final DeferredBlock<ChessPieceBlock> CHESS_PIECE_ROOK_WHITE = BLOCKS.registerBlock(
-            "chess_piece_rook_white", ChessPieceBlock::new,
-            p -> p.mapColor(MapColor.WOOD).noOcclusion());
-    public static final DeferredBlock<ChessPieceBlock> CHESS_PIECE_PAWN_WHITE = BLOCKS.registerBlock(
-            "chess_piece_pawn_white", ChessPieceBlock::new,
-            p -> p.mapColor(MapColor.WOOD).noOcclusion());
+    public static final DeferredBlock<ChessPieceBlock> CHESS_PIECE_KING_WHITE = registerPiece("chess_piece_king_white");
+    public static final DeferredBlock<ChessPieceBlock> CHESS_PIECE_QUEEN_WHITE = registerPiece("chess_piece_queen_white");
+    public static final DeferredBlock<ChessPieceBlock> CHESS_PIECE_BISHOP_WHITE = registerPiece("chess_piece_bishop_white");
+    public static final DeferredBlock<ChessPieceBlock> CHESS_PIECE_KNIGHT_WHITE = registerPiece("chess_piece_knight_white");
+    public static final DeferredBlock<ChessPieceBlock> CHESS_PIECE_ROOK_WHITE = registerPiece("chess_piece_rook_white");
+    public static final DeferredBlock<ChessPieceBlock> CHESS_PIECE_PAWN_WHITE = registerPiece("chess_piece_pawn_white");
 
     // 方块实体（所有棋盘共用一种类型）
     public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<ChessboardBlockEntity>> CHESSBOARD_BE =
@@ -155,19 +133,25 @@ public class ChessboardMod {
                 + "_" + wood.getSerializedName() + (frameless ? "_frameless" : "");
     }
 
-    /** 生成棋盘变体物品（block_state + custom_model_data + custom_name 组件） */
-    private static ItemStack boardVariant(DeferredItem<BlockItem> item, ChessMaterial wood, boolean frameless) {
+    /** 构造棋盘变体物品（block_state + custom_model_data + custom_name 组件），放置/掉落/创造标签页共用 */
+    public static ItemStack variantStack(ItemLike item, ChessMaterial wood, boolean frameless) {
+        Item itemObj = item.asItem();
         BlockItemStateProperties props = BlockItemStateProperties.EMPTY
                 .with(ChessboardBlock.WOOD, wood)
                 .with(ChessboardBlock.FRAMELESS, frameless);
         CustomModelData cmd = new CustomModelData(
-                java.util.List.of((float) variantIndex(wood, frameless)),
-                java.util.List.of(), java.util.List.of(), java.util.List.of());
-        ItemStack stack = new ItemStack(item.get());
+                List.of((float) variantIndex(wood, frameless)), List.of(), List.of(), List.of());
+        ItemStack stack = new ItemStack(itemObj);
         stack.set(DataComponents.BLOCK_STATE, props);
         stack.set(DataComponents.CUSTOM_MODEL_DATA, cmd);
-        stack.set(DataComponents.CUSTOM_NAME, Component.translatable(variantLangKey(item.getId().getPath(), wood, frameless)));
+        stack.set(DataComponents.CUSTOM_NAME, Component.translatable(
+                variantLangKey(itemObj.builtInRegistryHolder().key().identifier().getPath(), wood, frameless)));
         return stack;
+    }
+
+    /** 生成棋盘变体物品（创造标签页用） */
+    private static ItemStack boardVariant(DeferredItem<BlockItem> item, ChessMaterial wood, boolean frameless) {
+        return variantStack(item.get(), wood, frameless);
     }
 
     /** 向标签页输出基础物品（橡木带框）+ 其余变体（跳橡木带框，避免重复） */
@@ -218,6 +202,37 @@ public class ChessboardMod {
                 }));
     }
 
+    /** 定位棋盘方块实体、执行操作并反馈的命令模板；failMsg 为 null 时失败不提示 */
+    private static ArgumentBuilder<CommandSourceStack, ?> boardCommand(String name, String successMsg, String failMsg,
+            Function<ChessboardBlockEntity, Boolean> action) {
+        return Commands.literal(name)
+                .then(Commands.argument("x", IntegerArgumentType.integer())
+                        .then(Commands.argument("y", IntegerArgumentType.integer())
+                                .then(Commands.argument("z", IntegerArgumentType.integer())
+                                        .executes(ctx -> {
+                                            BlockPos pos = new BlockPos(
+                                                    IntegerArgumentType.getInteger(ctx, "x"),
+                                                    IntegerArgumentType.getInteger(ctx, "y"),
+                                                    IntegerArgumentType.getInteger(ctx, "z"));
+                                            var be = ctx.getSource().getLevel().getBlockEntity(pos);
+                                            if (be instanceof ChessboardBlockEntity board && action.apply(board)) {
+                                                ctx.getSource().sendSuccess(() -> Component.literal(successMsg), true);
+                                            } else if (failMsg != null) {
+                                                ctx.getSource().sendFailure(Component.literal(failMsg));
+                                            }
+                                            return 1;
+                                        }))));
+    }
+
+    /** 无返回值的命令模板 */
+    private static ArgumentBuilder<CommandSourceStack, ?> boardCommand(String name, String successMsg,
+            Consumer<ChessboardBlockEntity> action) {
+        return boardCommand(name, successMsg, null, board -> {
+            action.accept(board);
+            return true;
+        });
+    }
+
     @SubscribeEvent
     public void registerCommands(RegisterCommandsEvent event) {
         event.getDispatcher().register(
@@ -241,51 +256,11 @@ public class ChessboardMod {
                                                                             }
                                                                             return 1;
                                                                         })))))))
-                        .then(Commands.literal("wood")
-                                .then(Commands.argument("x", IntegerArgumentType.integer())
-                                        .then(Commands.argument("y", IntegerArgumentType.integer())
-                                                .then(Commands.argument("z", IntegerArgumentType.integer())
-                                                        .then(Commands.argument("wood", StringArgumentType.word())
-                                                                .executes(ctx -> {
-                                                                    BlockPos pos = new BlockPos(
-                                                                            IntegerArgumentType.getInteger(ctx, "x"),
-                                                                            IntegerArgumentType.getInteger(ctx, "y"),
-                                                                            IntegerArgumentType.getInteger(ctx, "z"));
-                                                                    String woodName = StringArgumentType.getString(ctx, "wood");
-                                                                    var level = ctx.getSource().getLevel();
-                                                                    net.minecraft.world.level.block.state.BlockState cur = level.getBlockState(pos);
-                                                                    if (cur.getBlock() instanceof com.chessboard.block.ChessboardBlock
-                                                                            && cur.hasProperty(com.chessboard.block.ChessboardBlock.WOOD)) {
-                                                                        com.chessboard.block.ChessMaterial wood = null;
-                                                                        for (com.chessboard.block.ChessMaterial w : com.chessboard.block.ChessMaterial.values()) {
-                                                                            if (w.getSerializedName().equals(woodName)) { wood = w; break; }
-                                                                        }
-                                                                        if (wood != null) {
-                                                                            level.setBlock(pos, cur.setValue(com.chessboard.block.ChessboardBlock.WOOD, wood), 3);
-                                                                            ctx.getSource().sendSuccess(() -> Component.literal("棋盘木种已改为 " + woodName), true);
-                                                                            return 1;
-                                                                        }
-                                                                    }
-                                                                    ctx.getSource().sendFailure(Component.literal("无法修改该方块的木种"));
-                                                                    return 0;
-                                                                }))))))
-                        .then(Commands.literal("undo")
-                                .then(Commands.argument("x", IntegerArgumentType.integer())
-                                        .then(Commands.argument("y", IntegerArgumentType.integer())
-                                                .then(Commands.argument("z", IntegerArgumentType.integer())
-                                                        .executes(ctx -> {
-                                                            BlockPos pos = new BlockPos(
-                                                                    IntegerArgumentType.getInteger(ctx, "x"),
-                                                                    IntegerArgumentType.getInteger(ctx, "y"),
-                                                                    IntegerArgumentType.getInteger(ctx, "z"));
-                                                            var be = ctx.getSource().getLevel().getBlockEntity(pos);
-                                                            if (be instanceof ChessboardBlockEntity board && board.undoMove()) {
-                                                                ctx.getSource().sendSuccess(() -> Component.literal("已悔棋"), true);
-                                                            } else {
-                                                                ctx.getSource().sendFailure(Component.literal("没有可以悔棋的步骤"));
-                                                            }
-                                                            return 1;
-                                                        })))))
+                        .then(boardCommand("undo", "已悔棋", "没有可以悔棋的步骤", ChessboardBlockEntity::undoMove))
+                        .then(boardCommand("darkstart", "已暗棋开局", ChessboardBlockEntity::darkStart))
+                        .then(boardCommand("fulldarkstart", "已全暗棋开局", ChessboardBlockEntity::fullDarkStart))
+                        .then(boardCommand("randomstart", "已随机开局", ChessboardBlockEntity::randomStart))
+                        .then(boardCommand("reset", "棋盘已重置", ChessboardBlockEntity::resetBoard))
                         .then(Commands.literal("import")
                                 .then(Commands.argument("x", IntegerArgumentType.integer())
                                         .then(Commands.argument("y", IntegerArgumentType.integer())
@@ -304,70 +279,31 @@ public class ChessboardMod {
                                                                     }
                                                                     return 1;
                                                                 }))))))
-                        .then(Commands.literal("darkstart")
+                        .then(Commands.literal("wood")
                                 .then(Commands.argument("x", IntegerArgumentType.integer())
                                         .then(Commands.argument("y", IntegerArgumentType.integer())
                                                 .then(Commands.argument("z", IntegerArgumentType.integer())
-                                                        .executes(ctx -> {
-                                                            BlockPos pos = new BlockPos(
-                                                                    IntegerArgumentType.getInteger(ctx, "x"),
-                                                                    IntegerArgumentType.getInteger(ctx, "y"),
-                                                                    IntegerArgumentType.getInteger(ctx, "z"));
-                                                            var be = ctx.getSource().getLevel().getBlockEntity(pos);
-                                                            if (be instanceof ChessboardBlockEntity board) {
-                                                                board.darkStart();
-                                                                ctx.getSource().sendSuccess(() -> Component.literal("已暗棋开局"), true);
-                                                            }
-                                                            return 1;
-                                                        })))))
-                        .then(Commands.literal("fulldarkstart")
-                                .then(Commands.argument("x", IntegerArgumentType.integer())
-                                        .then(Commands.argument("y", IntegerArgumentType.integer())
-                                                .then(Commands.argument("z", IntegerArgumentType.integer())
-                                                        .executes(ctx -> {
-                                                            BlockPos pos = new BlockPos(
-                                                                    IntegerArgumentType.getInteger(ctx, "x"),
-                                                                    IntegerArgumentType.getInteger(ctx, "y"),
-                                                                    IntegerArgumentType.getInteger(ctx, "z"));
-                                                            var be = ctx.getSource().getLevel().getBlockEntity(pos);
-                                                            if (be instanceof ChessboardBlockEntity board) {
-                                                                board.fullDarkStart();
-                                                                ctx.getSource().sendSuccess(() -> Component.literal("已全暗棋开局"), true);
-                                                            }
-                                                            return 1;
-                                                        })))))
-                        .then(Commands.literal("randomstart")
-                                .then(Commands.argument("x", IntegerArgumentType.integer())
-                                        .then(Commands.argument("y", IntegerArgumentType.integer())
-                                                .then(Commands.argument("z", IntegerArgumentType.integer())
-                                                        .executes(ctx -> {
-                                                            BlockPos pos = new BlockPos(
-                                                                    IntegerArgumentType.getInteger(ctx, "x"),
-                                                                    IntegerArgumentType.getInteger(ctx, "y"),
-                                                                    IntegerArgumentType.getInteger(ctx, "z"));
-                                                            var be = ctx.getSource().getLevel().getBlockEntity(pos);
-                                                            if (be instanceof ChessboardBlockEntity board) {
-                                                                board.randomStart();
-                                                                ctx.getSource().sendSuccess(() -> Component.literal("已随机开局"), true);
-                                                            }
-                                                            return 1;
-                                                        })))))
-                        .then(Commands.literal("reset")
-                                .then(Commands.argument("x", IntegerArgumentType.integer())
-                                        .then(Commands.argument("y", IntegerArgumentType.integer())
-                                                .then(Commands.argument("z", IntegerArgumentType.integer())
-                                                        .executes(ctx -> {
-                                                            BlockPos pos = new BlockPos(
-                                                                    IntegerArgumentType.getInteger(ctx, "x"),
-                                                                    IntegerArgumentType.getInteger(ctx, "y"),
-                                                                    IntegerArgumentType.getInteger(ctx, "z"));
-                                                            var be = ctx.getSource().getLevel().getBlockEntity(pos);
-                                                            if (be instanceof ChessboardBlockEntity board) {
-                                                                board.resetBoard();
-                                                                ctx.getSource().sendSuccess(() -> Component.literal("棋盘已重置"), true);
-                                                            }
-                                                            return 1;
-                                                        })))))
+                                                        .then(Commands.argument("wood", StringArgumentType.word())
+                                                                .executes(ctx -> {
+                                                                    BlockPos pos = new BlockPos(
+                                                                            IntegerArgumentType.getInteger(ctx, "x"),
+                                                                            IntegerArgumentType.getInteger(ctx, "y"),
+                                                                            IntegerArgumentType.getInteger(ctx, "z"));
+                                                                    String woodName = StringArgumentType.getString(ctx, "wood");
+                                                                    var level = ctx.getSource().getLevel();
+                                                                    BlockState cur = level.getBlockState(pos);
+                                                                    if (cur.getBlock() instanceof ChessboardBlock
+                                                                            && cur.hasProperty(ChessboardBlock.WOOD)) {
+                                                                        ChessMaterial wood = ChessMaterial.find(woodName);
+                                                                        if (wood != null) {
+                                                                            level.setBlock(pos, cur.setValue(ChessboardBlock.WOOD, wood), 3);
+                                                                            ctx.getSource().sendSuccess(() -> Component.literal("棋盘木种已改为 " + woodName), true);
+                                                                            return 1;
+                                                                        }
+                                                                    }
+                                                                    ctx.getSource().sendFailure(Component.literal("无法修改该方块的木种"));
+                                                                    return 0;
+                                                                }))))))
         );
     }
 }

@@ -19,7 +19,7 @@
         "strings": [],
         "colors": []
       },
-      "minecraft:custom_name": "{\"translate\": \"item.chessboard.variant.gomoku_board_birch_frameless\"}"
+      "minecraft:custom_name": {"translate": "item.chessboard.variant.gomoku_board_birch_frameless"}
     }
   }
 }

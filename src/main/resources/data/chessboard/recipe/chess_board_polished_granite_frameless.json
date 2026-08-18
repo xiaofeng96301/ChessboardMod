@@ -1,8 +1,7 @@
 {
   "type": "minecraft:stonecutting",
   "ingredient": [
-    "minecraft:polished_granite",
-    "minecraft:stripped_polished_granite_log"
+    "minecraft:polished_granite"
   ],
   "result": {
     "id": "chessboard:chess_board",
@@ -19,7 +18,7 @@
         "strings": [],
         "colors": []
       },
-      "minecraft:custom_name": "{\"translate\": \"item.chessboard.variant.chess_board_polished_granite_frameless\"}"
+      "minecraft:custom_name": {"translate": "item.chessboard.variant.chess_board_polished_granite_frameless"}
     }
   }
 }

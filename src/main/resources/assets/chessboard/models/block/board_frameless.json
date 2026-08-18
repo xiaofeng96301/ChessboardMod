@@ -4,7 +4,7 @@
 	"textures": {
 		"0": "chessboard:block/chinese_chessboard",
 		"2": "block/stripped_oak_log",
-		"particle": "#0"
+		"particle": "#2"
 	},
 	"elements": [
 		{

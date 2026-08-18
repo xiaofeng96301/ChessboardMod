@@ -6,7 +6,7 @@ import java.util.Arrays;
  * 井字棋规则：3×3 棋盘，O 先 X 后，轮流落子。
  * 棋子模型正面圆圈反面 X，X 方渲染时翻转模型。
  */
-public class TicTacToeLogic implements BoardGameLogic {
+public class TicTacToeLogic implements PlaceGameLogic {
 
     public static final TicTacToeLogic INSTANCE = new TicTacToeLogic(3.2f, 9.5f);
 
@@ -45,16 +45,9 @@ public class TicTacToeLogic implements BoardGameLogic {
     @Override public boolean pieceFlipX(int piece) { return piece == X; }
     @Override public float pieceHeight() { return 1.002f / 16f; }
 
-    @Override
-    public ClickResult onClick(int[] pieces, int selRow, int selCol, int clickRow, int clickCol) {
-        if (pieces[idx(clickRow, clickCol)] != 0) return new ClickResult.None();
-        int stone = (nextSide == 0) ? O : X;
-        pieces[idx(clickRow, clickCol)] = stone;
-        nextSide ^= 1;
-        return new ClickResult.Place(clickRow, clickCol);
-    }
+    @Override public int nextStone() { return nextSide == 0 ? O : X; }
 
-    public void toggleSide() { nextSide ^= 1; }
+    @Override public void toggleSide() { nextSide ^= 1; }
 
-    public static int idx(int row, int col) { return row * COLS + col; }
+    @Override public void onUndo() { toggleSide(); }
 }

@@ -19,7 +19,7 @@
         "strings": [],
         "colors": []
       },
-      "minecraft:custom_name": "{\"translate\": \"item.chessboard.variant.chinese_chessboard_acacia_frameless\"}"
+      "minecraft:custom_name": {"translate": "item.chessboard.variant.chinese_chessboard_acacia_frameless"}
     }
   }
 }

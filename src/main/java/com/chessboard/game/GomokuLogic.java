@@ -5,7 +5,7 @@ import java.util.Arrays;
 /**
  * 五子棋规则：15×15 棋盘，黑先白后，点击空格落子。
  */
-public class GomokuLogic implements BoardGameLogic {
+public class GomokuLogic implements PlaceGameLogic {
 
     public static final GomokuLogic INSTANCE = new GomokuLogic(1f, 14f);
 
@@ -53,16 +53,9 @@ public class GomokuLogic implements BoardGameLogic {
 
     public static boolean isGray(int piece) { return piece == GRAY; }
 
-    @Override
-    public ClickResult onClick(int[] pieces, int selRow, int selCol, int clickRow, int clickCol) {
-        if (pieces[idx(clickRow, clickCol)] != 0) return new ClickResult.None();
-        int stone = (nextSide == 0) ? BLACK : WHITE;
-        pieces[idx(clickRow, clickCol)] = stone;
-        nextSide ^= 1;
-        return new ClickResult.Place(clickRow, clickCol);
-    }
+    @Override public int nextStone() { return nextSide == 0 ? BLACK : WHITE; }
 
-    public void toggleSide() { nextSide ^= 1; }
+    @Override public void toggleSide() { nextSide ^= 1; }
 
-    public static int idx(int row, int col) { return row * COLS + col; }
+    @Override public void onUndo() { toggleSide(); }
 }

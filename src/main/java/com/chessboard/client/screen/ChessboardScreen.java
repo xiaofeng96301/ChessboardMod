@@ -2,9 +2,14 @@ package com.chessboard.client.screen;
 
 import com.chessboard.Config;
 import com.chessboard.MaterialData;
+import com.chessboard.block.ChessMaterial;
+import com.chessboard.block.ChessboardBlock;
 import com.chessboard.blockentity.ChessboardBlockEntity;
+import com.chessboard.game.BoardGameLogic;
+import com.chessboard.game.ChessLogic;
 import com.chessboard.game.ChineseChessLogic;
 import com.chessboard.game.GomokuLogic;
+import com.chessboard.network.SetMaterialPayload;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
@@ -64,9 +69,8 @@ public class ChessboardScreen extends Screen {
         addRenderableWidget(Button.builder(Component.literal("导入"), btn -> {
                     if (minecraft.player != null) {
                         String paste = codeField.getValue().isEmpty() ? currentCode : codeField.getValue();
-                        minecraft.player.connection.sendCommand(
-                            "chessboard import " + boardPos.getX() + " " + boardPos.getY() + " " +
-                            boardPos.getZ() + " " + paste);
+                        sendCommand("import " + boardPos.getX() + " " + boardPos.getY() + " " +
+                                boardPos.getZ() + " " + paste);
                     }
                     onClose();
                 })
@@ -142,15 +146,12 @@ public class ChessboardScreen extends Screen {
         rightColumnToggles.add(woodToggle);
         addRenderableWidget(woodToggle);
 
-        com.chessboard.block.ChessMaterial[] woods = com.chessboard.block.ChessMaterial.values();
+        ChessMaterial[] woods = ChessMaterial.values();
         for (int i = 0; i < woods.length; i++) {
-            com.chessboard.block.ChessMaterial w = woods[i];
+            ChessMaterial w = woods[i];
             Button opt = Button.builder(Component.literal(w.zhName()), b -> {
-                        if (minecraft.player != null) {
-                            minecraft.player.connection.sendCommand(
-                                    "chessboard wood " + boardPos.getX() + " " + boardPos.getY() + " " +
-                                            boardPos.getZ() + " " + w.getSerializedName());
-                        }
+                        sendCommand("wood " + boardPos.getX() + " " + boardPos.getY() + " " +
+                                boardPos.getZ() + " " + w.getSerializedName());
                         rightColumnToggles.get(1).setMessage(boardWoodLabel());
                         closeDropdowns();
                     })
@@ -228,9 +229,9 @@ public class ChessboardScreen extends Screen {
         addRenderableWidget(toggle);
 
         List<Button> options = new ArrayList<>();
-        com.chessboard.block.ChessMaterial[] all = com.chessboard.block.ChessMaterial.values();
+        ChessMaterial[] all = ChessMaterial.values();
         for (int i = 0; i < all.length; i++) {
-            com.chessboard.block.ChessMaterial mat = all[i];
+            ChessMaterial mat = all[i];
             Button opt = Button.builder(Component.literal(mat.zhName()), b -> {
                         selectMaterial(slot, mat, label);
                     })
@@ -243,14 +244,13 @@ public class ChessboardScreen extends Screen {
     }
 
     /** 选择材质：本地生效 + 发服务端 + 收起 */
-    private void selectMaterial(int slot, com.chessboard.block.ChessMaterial mat, String label) {
+    private void selectMaterial(int slot, ChessMaterial mat, String label) {
         if (minecraft.level != null
                 && minecraft.level.getBlockEntity(boardPos) instanceof ChessboardBlockEntity be) {
             be.setMaterial(slot, mat.getSerializedName());
         }
         if (minecraft.player != null) {
-            minecraft.player.connection.send(
-                    new com.chessboard.network.SetMaterialPayload(boardPos, slot, mat.getSerializedName()));
+            minecraft.player.connection.send(new SetMaterialPayload(boardPos, slot, mat.getSerializedName()));
         }
         Button toggle = toggleButtons.get(slot);
         if (toggle != null) toggle.setMessage(materialLabel(slot, label));
@@ -261,8 +261,8 @@ public class ChessboardScreen extends Screen {
     private Component boardWoodLabel() {
         if (minecraft.level != null) {
             var st = minecraft.level.getBlockState(boardPos);
-            if (st.hasProperty(com.chessboard.block.ChessboardBlock.WOOD)) {
-                return Component.literal("棋盘材质：" + st.getValue(com.chessboard.block.ChessboardBlock.WOOD).zhName());
+            if (st.hasProperty(ChessboardBlock.WOOD)) {
+                return Component.literal("棋盘材质：" + st.getValue(ChessboardBlock.WOOD).zhName());
             }
         }
         return Component.literal("棋盘材质");
@@ -284,7 +284,7 @@ public class ChessboardScreen extends Screen {
         if (activeDropdown == null) return super.mouseScrolled(x, y, scrollX, scrollY);
         int dir = scrollY > 0 ? -1 : 1;
         if (activeDropdown.equals("mat") && expandedSlot >= 0) {
-            int maxOffset = com.chessboard.block.ChessMaterial.values().length - maxVisibleFor(slotIndexMap.getOrDefault(expandedSlot, 2));
+            int maxOffset = ChessMaterial.values().length - maxVisibleFor(slotIndexMap.getOrDefault(expandedSlot, 2));
             int next = materialOffset + dir;
             if (next >= 0 && next <= maxOffset) {
                 materialOffset = next;
@@ -301,7 +301,7 @@ public class ChessboardScreen extends Screen {
                 return true;
             }
         } else if (activeDropdown.equals("wood")) {
-            int maxOffset = com.chessboard.block.ChessMaterial.values().length - maxVisibleFor(1);
+            int maxOffset = ChessMaterial.values().length - maxVisibleFor(1);
             int next = woodOffset + dir;
             if (next >= 0 && next <= maxOffset) {
                 woodOffset = next;
@@ -317,12 +317,10 @@ public class ChessboardScreen extends Screen {
     }
 
     /** 棋盘上某槽位的材质（未设置用该槽位默认材质） */
-    private com.chessboard.block.ChessMaterial currentMaterial(int slot) {
+    private ChessMaterial currentMaterial(int slot) {
         if (minecraft.level != null && minecraft.level.getBlockEntity(boardPos) instanceof ChessboardBlockEntity be) {
             String mat = be.material(slot);
-            return mat != null
-                    ? com.chessboard.block.ChessMaterial.byName(mat)
-                    : MaterialData.defaultMaterial(slot);
+            return mat != null ? ChessMaterial.byName(mat) : MaterialData.defaultMaterial(slot);
         }
         return MaterialData.defaultMaterial(slot);
     }
@@ -341,23 +339,21 @@ public class ChessboardScreen extends Screen {
         return Component.literal("右键侧面打开菜单：" + (Config.RIGHT_CLICK_OPENS_MENU.get() ? "开" : "关"));
     }
 
-    private boolean isChineseChessBoard() {
-        if (minecraft.level == null) return false;
+    /** 棋盘上的游戏逻辑（无棋盘实体时为 null） */
+    private BoardGameLogic gameLogicOf() {
+        if (minecraft.level == null) return null;
         var be = minecraft.level.getBlockEntity(boardPos);
-        return be instanceof ChessboardBlockEntity board && board.gameLogic() instanceof ChineseChessLogic;
+        return be instanceof ChessboardBlockEntity board ? board.gameLogic() : null;
     }
 
-    private boolean isGomokuBoard() {
-        if (minecraft.level == null) return false;
-        var be = minecraft.level.getBlockEntity(boardPos);
-        return be instanceof ChessboardBlockEntity board && board.gameLogic() instanceof GomokuLogic;
+    /** 棋盘是否为指定棋类 */
+    private boolean isBoard(Class<? extends BoardGameLogic> type) {
+        return type.isInstance(gameLogicOf());
     }
 
-    private boolean isChessBoard() {
-        if (minecraft.level == null) return false;
-        var be = minecraft.level.getBlockEntity(boardPos);
-        return be instanceof ChessboardBlockEntity board && board.gameLogic() instanceof com.chessboard.game.ChessLogic;
-    }
+    private boolean isChineseChessBoard() { return isBoard(ChineseChessLogic.class); }
+    private boolean isGomokuBoard() { return isBoard(GomokuLogic.class); }
+    private boolean isChessBoard() { return isBoard(ChessLogic.class); }
 
     private String getCurrentCode() {
         if (minecraft.level == null) return "";
@@ -367,10 +363,14 @@ public class ChessboardScreen extends Screen {
         return "";
     }
 
+    /** 发送 "chessboard <action> <x> <y> <z>" 命令 */
     private void sendCmd(String action) {
+        sendCommand(action + " " + boardPos.getX() + " " + boardPos.getY() + " " + boardPos.getZ());
+    }
+
+    private void sendCommand(String args) {
         if (minecraft.player != null) {
-            minecraft.player.connection.sendCommand(
-                    "chessboard " + action + " " + boardPos.getX() + " " + boardPos.getY() + " " + boardPos.getZ());
+            minecraft.player.connection.sendCommand("chessboard " + args);
         }
     }
 

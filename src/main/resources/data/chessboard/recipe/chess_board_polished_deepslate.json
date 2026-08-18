@@ -1,8 +1,7 @@
 {
   "type": "minecraft:stonecutting",
   "ingredient": [
-    "minecraft:polished_deepslate",
-    "minecraft:stripped_polished_deepslate_log"
+    "minecraft:polished_deepslate"
   ],
   "result": {
     "id": "chessboard:chess_board",
@@ -19,7 +18,7 @@
         "strings": [],
         "colors": []
       },
-      "minecraft:custom_name": "{\"translate\": \"item.chessboard.variant.chess_board_polished_deepslate\"}"
+      "minecraft:custom_name": {"translate": "item.chessboard.variant.chess_board_polished_deepslate"}
     }
   }
 }

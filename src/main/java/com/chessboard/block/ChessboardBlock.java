@@ -1,7 +1,9 @@
 package com.chessboard.block;
 
-import net.minecraft.world.level.block.state.BlockBehaviour.Properties;
+import com.chessboard.ChessboardMod;
 import com.chessboard.blockentity.ChessboardBlockEntity;
+import com.chessboard.game.BoardGameLogic;
+import com.chessboard.game.ChineseChessLogic;
 import com.mojang.serialization.MapCodec;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -16,20 +18,19 @@ import net.minecraft.world.level.block.BaseEntityBlock;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.block.entity.BlockEntity;
-import net.minecraft.world.level.storage.loot.LootParams;
-
-import java.util.Collections;
-import java.util.List;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.block.state.properties.BooleanProperty;
 import net.minecraft.world.level.block.state.properties.EnumProperty;
+import net.minecraft.world.level.storage.loot.LootParams;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.function.Consumer;
 
 /**
@@ -48,14 +49,13 @@ public class ChessboardBlock extends BaseEntityBlock {
     private static final VoxelShape SHAPE_FRAMED = Shapes.box(0, 0, 0, 1, 1.0 / 16.0, 1);
     private static final VoxelShape SHAPE_FRAMELESS = Shapes.box(0.5 / 16.0, 0, 0.5 / 16.0, 15.5 / 16.0, 1.0 / 16.0, 15.5 / 16.0);
 
-    private final com.chessboard.game.BoardGameLogic gameLogic;
-    private final com.chessboard.game.BoardGameLogic framelessLogic;
+    private final BoardGameLogic gameLogic;
+    private final BoardGameLogic framelessLogic;
 
     /** 客户端注入：Shift+右键打开管理界面的动作 */
     public static Consumer<BlockPos> openScreenAction = pos -> {};
 
-    public ChessboardBlock(Properties props, com.chessboard.game.BoardGameLogic gameLogic,
-                           com.chessboard.game.BoardGameLogic framelessLogic) {
+    public ChessboardBlock(Properties props, BoardGameLogic gameLogic, BoardGameLogic framelessLogic) {
         super(props);
         this.gameLogic = gameLogic;
         this.framelessLogic = framelessLogic;
@@ -66,9 +66,9 @@ public class ChessboardBlock extends BaseEntityBlock {
     }
 
     /** 按方块状态（无框/带框）返回对应游戏逻辑 */
-    public com.chessboard.game.BoardGameLogic getGameLogic(BlockState state) {
-        com.chessboard.game.BoardGameLogic g = state.getValue(FRAMELESS) ? framelessLogic : gameLogic;
-        return g != null ? g : com.chessboard.game.ChineseChessLogic.INSTANCE;
+    public BoardGameLogic getGameLogic(BlockState state) {
+        BoardGameLogic g = state.getValue(FRAMELESS) ? framelessLogic : gameLogic;
+        return g != null ? g : ChineseChessLogic.INSTANCE;
     }
 
     @Override protected MapCodec<? extends BaseEntityBlock> codec() { return CODEC; }
@@ -95,24 +95,9 @@ public class ChessboardBlock extends BaseEntityBlock {
         if (!level.isClientSide() && !player.isCreative()) {
             BlockEntity be = level.getBlockEntity(pos);
             if (be instanceof ChessboardBlockEntity board) {
-                ItemStack stack = new ItemStack(this);
                 // 保留木种/无框变体（放置状态、模型、名字）
-                ChessMaterial wood = state.getValue(WOOD);
-                boolean frameless = state.getValue(FRAMELESS);
-                net.minecraft.world.item.component.BlockItemStateProperties props =
-                        net.minecraft.world.item.component.BlockItemStateProperties.EMPTY
-                                .with(WOOD, wood)
-                                .with(FRAMELESS, frameless);
-                stack.set(net.minecraft.core.component.DataComponents.BLOCK_STATE, props);
-                net.minecraft.world.item.component.CustomModelData cmd = new net.minecraft.world.item.component.CustomModelData(
-                        java.util.List.of((float) com.chessboard.ChessboardMod.variantIndex(wood, frameless)),
-                        java.util.List.of(), java.util.List.of(), java.util.List.of());
-                stack.set(net.minecraft.core.component.DataComponents.CUSTOM_MODEL_DATA, cmd);
-                stack.set(net.minecraft.core.component.DataComponents.CUSTOM_NAME,
-                        net.minecraft.network.chat.Component.translatable(
-                                com.chessboard.ChessboardMod.variantLangKey(
-                                        asItem().builtInRegistryHolder().key().identifier().getPath(),
-                                        wood, frameless)));
+                ItemStack stack = ChessboardMod.variantStack(this,
+                        state.getValue(WOOD), state.getValue(FRAMELESS));
                 stack.applyComponents(board.collectComponents());
                 popResource(level, pos, stack);
                 level.removeBlockEntity(pos);
@@ -130,14 +115,14 @@ public class ChessboardBlock extends BaseEntityBlock {
         BlockEntity be = level.getBlockEntity(pos);
         if (!(be instanceof ChessboardBlockEntity board)) return InteractionResult.FAIL;
 
-        int[] mc = worldToModel(hit.getLocation().x - pos.getX(),
+        int[] rc = worldToModel(hit.getLocation().x - pos.getX(),
                 hit.getLocation().z - pos.getZ(), state.getValue(FACING), board.gameLogic());
-        board.handleClick(mc[1], mc[0]); // row, col
+        board.handleClick(rc[0], rc[1]); // row, col
         return InteractionResult.SUCCESS;
     }
 
-    /** 世界坐标 → 棋盘行列（匹配 rowPixel/colPixel） */
-    private static int[] worldToModel(double wx, double wz, Direction facing, com.chessboard.game.BoardGameLogic g) {
+    /** 世界坐标 → 棋盘行列（返回 {row, col}，匹配 rowPixel/colPixel） */
+    private static int[] worldToModel(double wx, double wz, Direction facing, BoardGameLogic g) {
         wx *= 16.0; wz *= 16.0;
         double mx, mz;
         switch (facing) {
@@ -147,7 +132,7 @@ public class ChessboardBlock extends BaseEntityBlock {
             default    -> { mx = wx; mz = wz; }
         }
         // 最近邻匹配 rowPixel/colPixel
-        int bestCol = 0, bestRow = 0;
+        int bestRow = 0, bestCol = 0;
         double bestDist = Double.MAX_VALUE;
         for (int r = 0; r < g.rows(); r++) {
             for (int c = 0; c < g.cols(); c++) {
@@ -156,6 +141,6 @@ public class ChessboardBlock extends BaseEntityBlock {
                 if (d < bestDist) { bestDist = d; bestRow = r; bestCol = c; }
             }
         }
-        return new int[]{bestCol, bestRow};
+        return new int[]{bestRow, bestCol};
     }
 }

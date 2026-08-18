@@ -1,10 +1,11 @@
 package com.chessboard.blockentity;
 
+import com.chessboard.MaterialData;
 import com.chessboard.block.ChessboardBlock;
 import com.chessboard.game.BoardGameLogic;
 import com.chessboard.game.BoardGameLogic.ClickResult;
+import com.chessboard.game.ChineseChessLogic;
 import com.chessboard.game.GomokuLogic;
-import com.chessboard.game.TicTacToeLogic;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.component.DataComponentGetter;
@@ -23,13 +24,19 @@ import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
 
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Deque;
+import java.util.List;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.BiConsumer;
+import java.util.function.Function;
 
 /**
  * 通用棋盘方块实体 —— 框架核心。
  * 负责棋子存储、选中、走棋历史、悔棋、重置、网络同步。
- * 具体规则通过 {@link ChessboardBlock#getGameLogic()} 获取。
+ * 具体规则通过 {@link ChessboardBlock#getGameLogic(BlockState)} 获取。
  */
 public class ChessboardBlockEntity extends BlockEntity {
 
@@ -40,7 +47,7 @@ public class ChessboardBlockEntity extends BlockEntity {
     private int selRow = -1, selCol = -1;
     private final Deque<int[]> history = new ArrayDeque<>();
     /** 棋子材质配置（6 槽位，null = 默认），保存在棋盘实体上 */
-    private String[] materials = new String[com.chessboard.MaterialData.SLOT_COUNT];
+    private String[] materials = new String[MaterialData.SLOT_COUNT];
 
     public ChessboardBlockEntity(BlockPos pos, BlockState state) {
         super(TYPE, pos, state);
@@ -96,7 +103,7 @@ public class ChessboardBlockEntity extends BlockEntity {
             }
             case ClickResult.None() -> {}
             case ClickResult.Flip(int rw, int cl) -> {
-                pieces[idx(rw, cl)] = com.chessboard.game.ChineseChessLogic.reveal(pieces[idx(rw, cl)]);
+                pieces[idx(rw, cl)] = ChineseChessLogic.reveal(pieces[idx(rw, cl)]);
                 selRow = -1; selCol = -1;
             }
         }
@@ -116,8 +123,7 @@ public class ChessboardBlockEntity extends BlockEntity {
         } else {
             pieces[idx(tr, tc)] = 0;
         }
-        if (g instanceof GomokuLogic gmk) gmk.toggleSide();
-        else if (g instanceof TicTacToeLogic ttt) ttt.toggleSide();
+        g.onUndo(); // 落子类需要还原下子方
         selRow = -1; selCol = -1;
         notifyChange();
         return true;
@@ -125,31 +131,23 @@ public class ChessboardBlockEntity extends BlockEntity {
 
     public void importCode(String code) {
         gameLogic().decodePieces(pieces, code);
-        history.clear();
-        selRow = -1; selCol = -1;
-        notifyChange();
+        resetState();
     }
 
     /** 中国象棋暗棋开局：重置棋盘，类型随机打乱并盖上背面 */
     public void darkStart() {
-        BoardGameLogic g = gameLogic();
-        if (!(g instanceof com.chessboard.game.ChineseChessLogic)) return;
-        com.chessboard.game.ChineseChessLogic ccl = (com.chessboard.game.ChineseChessLogic) g;
-        ccl.darkStart(pieces);
-        history.clear();
-        selRow = -1; selCol = -1;
-        notifyChange();
+        if (gameLogic() instanceof ChineseChessLogic ccl) {
+            ccl.darkStart(pieces);
+            resetState();
+        }
     }
 
     /** 中国象棋全暗棋开局：重置棋盘，红黑双方棋子值和位置全部随机并盖上背面 */
     public void fullDarkStart() {
-        BoardGameLogic g = gameLogic();
-        if (!(g instanceof com.chessboard.game.ChineseChessLogic)) return;
-        com.chessboard.game.ChineseChessLogic ccl = (com.chessboard.game.ChineseChessLogic) g;
-        ccl.fullDarkStart(pieces);
-        history.clear();
-        selRow = -1; selCol = -1;
-        notifyChange();
+        if (gameLogic() instanceof ChineseChessLogic ccl) {
+            ccl.fullDarkStart(pieces);
+            resetState();
+        }
     }
 
     /** 五子棋随机开局：先重置棋盘，再在随机空位放 3~10 个灰色障碍棋子 */
@@ -158,13 +156,13 @@ public class ChessboardBlockEntity extends BlockEntity {
         if (!(g instanceof GomokuLogic)) return;
         g.initBoard(pieces);
         history.clear();
-        java.util.ArrayList<Integer> empty = new java.util.ArrayList<>();
+        List<Integer> empty = new ArrayList<>();
         for (int i = 0; i < pieces.length; i++) {
             if (pieces[i] == 0) empty.add(i);
         }
         if (empty.isEmpty()) return;
-        java.util.Collections.shuffle(empty);
-        int count = 3 + java.util.concurrent.ThreadLocalRandom.current().nextInt(8); // 3~10
+        Collections.shuffle(empty);
+        int count = 3 + ThreadLocalRandom.current().nextInt(8); // 3~10
         count = Math.min(count, empty.size());
         for (int i = 0; i < count; i++) {
             int idx = empty.get(i);
@@ -177,6 +175,11 @@ public class ChessboardBlockEntity extends BlockEntity {
 
     public void resetBoard() {
         gameLogic().initBoard(pieces);
+        resetState();
+    }
+
+    /** 清空选中与历史并通知同步（重置/导入/开局共用） */
+    private void resetState() {
         history.clear();
         selRow = -1; selCol = -1;
         notifyChange();
@@ -209,6 +212,24 @@ public class ChessboardBlockEntity extends BlockEntity {
 
     // ── 持久化 ──
 
+    /** 序列化非空材质槽位（key: "matN"） */
+    private void writeMaterials(BiConsumer<String, String> sink) {
+        for (int i = 0; i < materials.length; i++) {
+            if (materials[i] != null) sink.accept("mat" + i, materials[i]);
+        }
+    }
+
+    /** 读取材质槽位（缺失 = null） */
+    private void readMaterials(Function<String, String> getter) {
+        for (int i = 0; i < materials.length; i++) materials[i] = getter.apply("mat" + i);
+    }
+
+    /** 读取棋子数组（长度不符则忽略，保持现有棋盘） */
+    private void loadPieces(int[] loaded) {
+        if (loaded != null && loaded.length == pieces.length)
+            System.arraycopy(loaded, 0, pieces, 0, pieces.length);
+    }
+
     @Override
     protected void saveAdditional(ValueOutput out) {
         super.saveAdditional(out);
@@ -216,9 +237,7 @@ public class ChessboardBlockEntity extends BlockEntity {
         out.putIntArray("pieces", pieces);
         out.putInt("selRow", selRow);
         out.putInt("selCol", selCol);
-        for (int i = 0; i < materials.length; i++) {
-            if (materials[i] != null) out.putString("mat" + i, materials[i]);
-        }
+        writeMaterials(out::putString);
         int size = history.size();
         out.putInt("histSize", size);
         if (size > 0) out.putIntArray("history", flattenHistory());
@@ -233,9 +252,7 @@ public class ChessboardBlockEntity extends BlockEntity {
         else gameLogic().initBoard(pieces);
         selRow = in.getIntOr("selRow", -1);
         selCol = in.getIntOr("selCol", -1);
-        for (int i = 0; i < materials.length; i++) {
-            materials[i] = in.getString("mat" + i).orElse(null);
-        }
+        readMaterials(key -> in.getString(key).orElse(null));
         int histSize = in.getIntOr("histSize", 0);
         if (histSize > 0) restoreHistory(in.getIntArray("history").orElse(null));
     }
@@ -247,9 +264,7 @@ public class ChessboardBlockEntity extends BlockEntity {
         tag.putIntArray("pieces", pieces);
         tag.putInt("selRow", selRow);
         tag.putInt("selCol", selCol);
-        for (int i = 0; i < materials.length; i++) {
-            if (materials[i] != null) tag.putString("mat" + i, materials[i]);
-        }
+        writeMaterials(tag::putString);
         return tag;
     }
 
@@ -257,13 +272,10 @@ public class ChessboardBlockEntity extends BlockEntity {
     public void handleUpdateTag(ValueInput in) {
         super.handleUpdateTag(in);
         gameLogic();
-        int[] loaded = in.getIntArray("pieces").orElse(null);
-        if (loaded != null && loaded.length == pieces.length) System.arraycopy(loaded, 0, pieces, 0, pieces.length);
+        loadPieces(in.getIntArray("pieces").orElse(null));
         selRow = in.getIntOr("selRow", -1);
         selCol = in.getIntOr("selCol", -1);
-        for (int i = 0; i < materials.length; i++) {
-            materials[i] = in.getString("mat" + i).orElse(null);
-        }
+        readMaterials(key -> in.getString(key).orElse(null));
     }
 
     @Override
@@ -290,9 +302,7 @@ public class ChessboardBlockEntity extends BlockEntity {
         tag.putIntArray("pieces", pieces);
         tag.putInt("selRow", selRow);
         tag.putInt("selCol", selCol);
-        for (int i = 0; i < materials.length; i++) {
-            if (materials[i] != null) tag.putString("mat" + i, materials[i]);
-        }
+        writeMaterials(tag::putString);
         tag.putInt("histSize", history.size());
         int[] flat = flattenHistory();
         if (flat != null) tag.putIntArray("history", flat);
@@ -304,16 +314,10 @@ public class ChessboardBlockEntity extends BlockEntity {
         super.applyImplicitComponents(input);
         CompoundTag tag = input.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag();
         gameLogic();
-        if (tag.contains("pieces")) {
-            int[] loaded = tag.getIntArray("pieces").orElse(null);
-            if (loaded != null && loaded.length == pieces.length)
-                System.arraycopy(loaded, 0, pieces, 0, pieces.length);
-        }
+        if (tag.contains("pieces")) loadPieces(tag.getIntArray("pieces").orElse(null));
         selRow = tag.getInt("selRow").orElse(-1);
         selCol = tag.getInt("selCol").orElse(-1);
-        for (int i = 0; i < materials.length; i++) {
-            materials[i] = tag.contains("mat" + i) ? tag.getString("mat" + i).orElse(null) : null;
-        }
+        readMaterials(key -> tag.getString(key).orElse(null));
         int histSize = tag.getInt("histSize").orElse(0);
         if (histSize > 0 && tag.contains("history")) restoreHistory(tag.getIntArray("history").orElse(null));
     }

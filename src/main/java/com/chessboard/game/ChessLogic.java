@@ -57,24 +57,9 @@ public class ChessLogic implements BoardGameLogic {
 
     @Override
     public ClickResult onClick(int[] pieces, int selRow, int selCol, int clickRow, int clickCol) {
-        int cp = pieces[idx(clickRow, clickCol)];
-        if (selRow < 0) {
-            return cp != 0 ? new ClickResult.Select(clickRow, clickCol) : new ClickResult.None();
-        }
-        int sp = pieces[idx(selRow, selCol)];
-        if (cp != 0) {
-            if (side(cp) == side(sp))
-                return new ClickResult.Select(clickRow, clickCol);
-            pieces[idx(selRow, selCol)] = 0;
-            pieces[idx(clickRow, clickCol)] = sp;
-            return new ClickResult.Move(selRow, selCol, clickRow, clickCol);
-        }
-        pieces[idx(selRow, selCol)] = 0;
-        pieces[idx(clickRow, clickCol)] = sp;
-        return new ClickResult.Move(selRow, selCol, clickRow, clickCol);
+        return onClickMove(pieces, selRow, selCol, clickRow, clickCol);
     }
 
     public static int pack(int side, int type) { return (side << 3) | type; }
     public static int type(int piece) { return piece & 7; }
-    public static int idx(int row, int col) { return row * COLS + col; }
 }

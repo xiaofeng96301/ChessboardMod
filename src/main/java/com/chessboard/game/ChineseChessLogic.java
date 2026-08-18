@@ -1,6 +1,10 @@
 package com.chessboard.game;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Random;
 
 /**
  * 中国象棋规则：10×9 棋盘，红/黑双方各 16 枚棋子。
@@ -44,17 +48,13 @@ public class ChineseChessLogic implements BoardGameLogic {
     /** 暗棋开局：重置布局后，双方各自随机交换棋子类型位置，全部盖上背面 */
     public void darkStart(int[] p) {
         initBoard(p);
-        java.util.Random rnd = new java.util.Random();
+        Random rnd = new Random();
         for (int side = 0; side <= 1; side++) {
-            int[] types = new int[16];
-            int n = 0;
-            for (int i = 0; i < p.length; i++) if (p[i] != 0 && side(p[i]) == side) types[n++] = type(p[i]);
-            for (int i = n - 1; i > 0; i--) {
-                int j = rnd.nextInt(i + 1);
-                int t = types[i]; types[i] = types[j]; types[j] = t;
-            }
+            List<Integer> types = new ArrayList<>();
+            for (int i = 0; i < p.length; i++) if (p[i] != 0 && side(p[i]) == side) types.add(type(p[i]));
+            Collections.shuffle(types, rnd);
             int k = 0;
-            for (int i = 0; i < p.length; i++) if (p[i] != 0 && side(p[i]) == side) p[i] = pack(side, types[k++]);
+            for (int i = 0; i < p.length; i++) if (p[i] != 0 && side(p[i]) == side) p[i] = pack(side, types.get(k++));
         }
         for (int i = 0; i < p.length; i++) if (p[i] != 0) p[i] |= HIDDEN_BIT;
     }
@@ -62,13 +62,13 @@ public class ChineseChessLogic implements BoardGameLogic {
     /** 全暗棋开局：重置布局后，红黑双方的棋子值全部随机打乱位置（阵营也随机），全部盖上背面 */
     public void fullDarkStart(int[] p) {
         initBoard(p);
-        java.util.ArrayList<Integer> positions = new java.util.ArrayList<>();
-        java.util.ArrayList<Integer> values = new java.util.ArrayList<>();
+        List<Integer> positions = new ArrayList<>();
+        List<Integer> values = new ArrayList<>();
         for (int i = 0; i < p.length; i++) {
             if (p[i] != 0) { positions.add(i); values.add(p[i]); }
         }
-        java.util.Collections.shuffle(positions);
-        java.util.Collections.shuffle(values);
+        Collections.shuffle(positions);
+        Collections.shuffle(values);
         for (int i = 0; i < positions.size(); i++) p[positions.get(i)] = values.get(i) | HIDDEN_BIT;
     }
 
@@ -104,22 +104,8 @@ public class ChineseChessLogic implements BoardGameLogic {
 
     @Override
     public ClickResult onClick(int[] pieces, int selRow, int selCol, int clickRow, int clickCol) {
-        int cp = pieces[idx(clickRow, clickCol)];
-        if (isHidden(cp)) return new ClickResult.Flip(clickRow, clickCol);
-        if (selRow < 0) {
-            return cp != 0 ? new ClickResult.Select(clickRow, clickCol) : new ClickResult.None();
-        }
-        int sp = pieces[idx(selRow, selCol)];
-        if (cp != 0) {
-            if (side(cp) == side(sp))
-                return new ClickResult.Select(clickRow, clickCol);
-            pieces[idx(selRow, selCol)] = 0;
-            pieces[idx(clickRow, clickCol)] = sp;
-            return new ClickResult.Move(selRow, selCol, clickRow, clickCol);
-        }
-        pieces[idx(selRow, selCol)] = 0;
-        pieces[idx(clickRow, clickCol)] = sp;
-        return new ClickResult.Move(selRow, selCol, clickRow, clickCol);
+        if (isHidden(pieces[idx(clickRow, clickCol)])) return new ClickResult.Flip(clickRow, clickCol);
+        return onClickMove(pieces, selRow, selCol, clickRow, clickCol);
     }
 
     public static boolean isHidden(int piece) { return (piece & HIDDEN_BIT) != 0; }
@@ -128,5 +114,4 @@ public class ChineseChessLogic implements BoardGameLogic {
 
     public static int pack(int side, int type) { return (side << 3) | type; }
     public static int type(int piece) { return piece & 7; }
-    public static int idx(int row, int col) { return row * COLS + col; }
 }

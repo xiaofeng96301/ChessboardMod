@@ -1,8 +1,7 @@
 {
   "type": "minecraft:stonecutting",
   "ingredient": [
-    "minecraft:polished_andesite",
-    "minecraft:stripped_polished_andesite_log"
+    "minecraft:polished_andesite"
   ],
   "result": {
     "id": "chessboard:chinese_chessboard",
@@ -19,7 +18,7 @@
         "strings": [],
         "colors": []
       },
-      "minecraft:custom_name": "{\"translate\": \"item.chessboard.variant.chinese_chessboard_polished_andesite_frameless\"}"
+      "minecraft:custom_name": {"translate": "item.chessboard.variant.chinese_chessboard_polished_andesite_frameless"}
     }
   }
 }

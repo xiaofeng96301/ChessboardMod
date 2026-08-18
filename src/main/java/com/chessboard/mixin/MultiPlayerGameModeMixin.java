@@ -5,6 +5,7 @@ import com.chessboard.Config;
 import com.chessboard.block.ChessboardBlock;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.MultiPlayerGameMode;
+import net.minecraft.core.Direction;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.level.Level;
@@ -28,8 +29,8 @@ public class MultiPlayerGameModeMixin {
         BlockState state = level.getBlockState(blockHit.getBlockPos());
         if (!(state.getBlock() instanceof ChessboardBlock)) return;
         // 未按住菜单键时，只有点击侧面才开菜单，上下面继续落子
-        if (!menuKey && blockHit.getDirection() == net.minecraft.core.Direction.UP) return;
-        if (!menuKey && blockHit.getDirection() == net.minecraft.core.Direction.DOWN) return;
+        if (!menuKey && blockHit.getDirection() == Direction.UP) return;
+        if (!menuKey && blockHit.getDirection() == Direction.DOWN) return;
         ChessboardBlock.openScreenAction.accept(blockHit.getBlockPos());
         cir.setReturnValue(InteractionResult.FAIL);
     }

@@ -2,19 +2,76 @@
 	"format_version": "1.21.11",
 	"credit": "Made with Blockbench",
 	"textures": {
-		"0": "chessboard:block/tictactoe_pieces"
+		"0": "chessboard:block/tictactoe_pieces",
+		"particle": "#0"
 	},
 	"elements": [
 		{
-			"from": [0,-0.001, 0],
-			"to": [7, 0.001, 7],
+			"from": [
+				0,
+				-0.001,
+				0
+			],
+			"to": [
+				7,
+				0.001,
+				7
+			],
 			"faces": {
-				"north": {"uv": [0, 0, 7, 0], "texture": "#0"},
-				"east": {"uv": [0, 0, 7, 0], "texture": "#0"},
-				"south": {"uv": [0, 0, 7, 0], "texture": "#0"},
-				"west": {"uv": [0, 0, 7, 0], "texture": "#0"},
-				"up": {"uv": [7, 7, 0, 0], "texture": "#0"},
-				"down": {"uv": [7, 7, 0, 14], "texture": "#0"}
+				"north": {
+					"uv": [
+						0,
+						0,
+						7,
+						0
+					],
+					"texture": "#0"
+				},
+				"east": {
+					"uv": [
+						0,
+						0,
+						7,
+						0
+					],
+					"texture": "#0"
+				},
+				"south": {
+					"uv": [
+						0,
+						0,
+						7,
+						0
+					],
+					"texture": "#0"
+				},
+				"west": {
+					"uv": [
+						0,
+						0,
+						7,
+						0
+					],
+					"texture": "#0"
+				},
+				"up": {
+					"uv": [
+						7,
+						7,
+						0,
+						0
+					],
+					"texture": "#0"
+				},
+				"down": {
+					"uv": [
+						7,
+						7,
+						0,
+						14
+					],
+					"texture": "#0"
+				}
 			}
 		}
 	]

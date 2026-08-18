@@ -1,5 +1,7 @@
 package com.chessboard.game;
 
+import java.util.Arrays;
+
 /**
  * 棋盘游戏规则接口。
  * 每种棋类只需实现此接口，框架自动处理棋子存储、悔棋、重置、动画渲染。
@@ -79,7 +81,7 @@ public interface BoardGameLogic {
 
     /** 解码：每 3 字符一组（值hex + 行b36 + 列b36） */
     default void decodePieces(int[] pieces, String code) {
-        java.util.Arrays.fill(pieces, 0);
+        Arrays.fill(pieces, 0);
         String prefix = codePrefix();
         if (!code.startsWith(prefix)) return;
         String data = code.substring(prefix.length());
@@ -113,6 +115,34 @@ public interface BoardGameLogic {
      * @return 点击结果
      */
     ClickResult onClick(int[] pieces, int selRow, int selCol, int clickRow, int clickCol);
+
+    /** 行列 → 棋子数组下标 */
+    default int idx(int row, int col) { return row * cols() + col; }
+
+    /** 悔棋时还原下子方（默认空操作，落子类覆写） */
+    default void onUndo() {}
+
+    /**
+     * 移动类默认点击：空点选子，点同色换选，点空格或异色走子。
+     * 中国象棋/国际象棋共用；中国象棋需先处理暗棋翻面再调用。
+     */
+    default ClickResult onClickMove(int[] pieces, int selRow, int selCol, int clickRow, int clickCol) {
+        int cp = pieces[idx(clickRow, clickCol)];
+        if (selRow < 0) {
+            return cp != 0 ? new ClickResult.Select(clickRow, clickCol) : new ClickResult.None();
+        }
+        int sp = pieces[idx(selRow, selCol)];
+        if (cp != 0) {
+            if (side(cp) == side(sp))
+                return new ClickResult.Select(clickRow, clickCol);
+            pieces[idx(selRow, selCol)] = 0;
+            pieces[idx(clickRow, clickCol)] = sp;
+            return new ClickResult.Move(selRow, selCol, clickRow, clickCol);
+        }
+        pieces[idx(selRow, selCol)] = 0;
+        pieces[idx(clickRow, clickCol)] = sp;
+        return new ClickResult.Move(selRow, selCol, clickRow, clickCol);
+    }
 
     // ── 结果类型 ──
 
