@@ -1,16 +1,11 @@
 package com.chessboard.client.renderer;
 
-import com.chessboard.ChessboardMod;
+import com.chessboard.Config;
 import com.chessboard.MaterialData;
-import com.chessboard.block.ChessMaterial;
-import com.chessboard.block.ChessPieceBlock;
 import com.chessboard.block.ChessboardBlock;
 import com.chessboard.blockentity.ChessboardBlockEntity;
 import com.chessboard.game.BoardGameLogic;
-import com.chessboard.game.ChessLogic;
 import com.chessboard.game.ChineseChessLogic;
-import com.chessboard.game.GomokuLogic;
-import com.chessboard.game.TicTacToeLogic;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
 import net.minecraft.client.gui.Font;
@@ -19,7 +14,6 @@ import net.minecraft.client.renderer.block.BlockModelRenderState;
 import net.minecraft.client.renderer.block.BlockModelResolver;
 import net.minecraft.client.renderer.block.model.BlockDisplayContext;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
-import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
 import net.minecraft.client.renderer.blockentity.state.BlockEntityRenderState;
 import net.minecraft.client.renderer.feature.ModelFeatureRenderer;
@@ -36,70 +30,25 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * 通用棋盘棋子渲染器 —— 框架层。
- * 通过 {@link BoardGameLogic} 适配不同棋类，负责模型加载、动画和文字渲染。
+ * 棋盘棋子渲染器 —— 只负责<b>动画中</b>的棋子和文字。
+ *
+ * <p>静止棋子在区块网格构建时已由 {@link ChessboardSectionGeometry} 烘焙进区块顶点，
+ * 本渲染器不再重复绘制。动画状态来自 {@link ChessboardAnimTracker}（与区块几何共用同一份），
+ * 因此两条路径绘制的格子天然互斥。
+ *
+ * <p>文字无法烘焙（字体图集 ≠ 地形图集，且需逐帧朝向相机 + POLYGON_OFFSET），
+ * 所以始终由本渲染器绘制。
  */
 public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEntity, ChessboardRenderer.ChessboardRenderState> {
 
     private final BlockModelResolver modelResolver;
     private final Font font;
-    private final Map<BlockPos, AnimData> animMap = new HashMap<>();
-    /** 每个棋盘缓存的已解析棋子模型（key: piece * 31 + materials 哈希），避免每帧每子重复解析 */
+    /** 动态棋子的模型缓存（key: piece * 31 + materials 哈希）；同时最多只会有几颗 */
     private final Map<BlockPos, Map<Integer, BlockModelRenderState>> modelCache = new HashMap<>();
 
     public ChessboardRenderer(BlockEntityRendererProvider.Context ctx) {
         this.modelResolver = ctx.blockModelResolver();
         this.font = ctx.font();
-    }
-
-    private static class AnimData {
-        long selMs, unselMs, moveMs, flipMs;
-        int[] prevPieces;
-        int prevSelRow = -1, prevSelCol = -1;
-        int unselRow = -1, unselCol = -1;
-        int fromRow = -1, fromCol = -1, toRow = -1, toCol = -1;
-        int flipRow = -1, flipCol = -1;
-    }
-
-    private BlockModelRenderState loadModel(BoardGameLogic g, int piece, String[] materials) {
-        var ms = new BlockModelRenderState();
-        var state = switch (g) {
-            case ChineseChessLogic ccl -> withMaterial(
-                    ChineseChessLogic.isHidden(piece)
-                            ? ChessboardMod.CHINESE_PIECE_HIDDEN.get()
-                            : ChessboardMod.CHESS_PIECE_MODEL.get(),
-                    materials, MaterialData.SLOT_CHINESE);
-            case GomokuLogic gml -> {
-                int slot = GomokuLogic.isGray(piece)
-                        ? MaterialData.SLOT_GOMOKU_GRAY
-                        : (gml.side(piece) == 0
-                                ? MaterialData.SLOT_GOMOKU_BLACK
-                                : MaterialData.SLOT_GOMOKU_WHITE);
-                var block = GomokuLogic.isGray(piece)
-                        ? ChessboardMod.GOMOKU_PIECE_GRAY.get()
-                        : (gml.side(piece) == 0
-                                ? ChessboardMod.GOMOKU_PIECE_BLACK.get()
-                                : ChessboardMod.GOMOKU_PIECE_WHITE.get());
-                yield withMaterial(block, materials, slot);
-            }
-            case TicTacToeLogic ttt -> ChessboardMod.TICTACTOE_PIECE_MODEL.get().defaultBlockState();
-            case ChessLogic cl -> {
-                boolean isWhite = cl.side(piece) == 0;
-                int slot = isWhite ? MaterialData.SLOT_CHESS_WHITE : MaterialData.SLOT_CHESS_BLACK;
-                var block = switch (ChessLogic.type(piece)) {
-                    case ChessLogic.KING -> isWhite ? ChessboardMod.CHESS_PIECE_KING_WHITE.get() : ChessboardMod.CHESS_PIECE_KING.get();
-                    case ChessLogic.QUEEN -> isWhite ? ChessboardMod.CHESS_PIECE_QUEEN_WHITE.get() : ChessboardMod.CHESS_PIECE_QUEEN.get();
-                    case ChessLogic.BISHOP -> isWhite ? ChessboardMod.CHESS_PIECE_BISHOP_WHITE.get() : ChessboardMod.CHESS_PIECE_BISHOP.get();
-                    case ChessLogic.KNIGHT -> isWhite ? ChessboardMod.CHESS_PIECE_KNIGHT_WHITE.get() : ChessboardMod.CHESS_PIECE_KNIGHT.get();
-                    case ChessLogic.ROOK -> isWhite ? ChessboardMod.CHESS_PIECE_ROOK_WHITE.get() : ChessboardMod.CHESS_PIECE_ROOK.get();
-                    default -> isWhite ? ChessboardMod.CHESS_PIECE_PAWN_WHITE.get() : ChessboardMod.CHESS_PIECE_PAWN.get();
-                };
-                yield withMaterial(block, materials, slot);
-            }
-            default -> ChessboardMod.CHESS_PIECE_MODEL.get().defaultBlockState();
-        };
-        modelResolver.update(ms, state, BlockDisplayContext.create());
-        return ms;
     }
 
     /** 取缓存棋子模型：仅当 piece/材质变化时才重新解析（submit 只读复用，见 BlockModelRenderState#submit） */
@@ -108,23 +57,18 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
         int key = piece * 31 + Arrays.hashCode(materials);
         BlockModelRenderState rs = byPiece.get(key);
         if (rs == null) {
-            rs = loadModel(g, piece, materials);
-            byPiece.put(key, rs);
+            var ms = new BlockModelRenderState();
+            modelResolver.update(ms, ChessboardPieceGeometry.stateFor(g, piece, materials),
+                    BlockDisplayContext.create());
+            byPiece.put(key, ms);
+            rs = ms;
         }
         return rs;
     }
 
-    /** 按棋盘上保存的材质配置选择棋子方块状态 */
-    private static BlockState withMaterial(ChessPieceBlock block, String[] materials, int slot) {
-        String mat = materials != null && slot < materials.length ? materials[slot] : null;
-        ChessMaterial m = mat != null
-                ? ChessMaterial.byName(mat)
-                : MaterialData.defaultMaterial(slot);
-        return block.defaultBlockState().setValue(ChessPieceBlock.MATERIAL, m);
-    }
-
     @Override
     public ChessboardRenderState createRenderState() { return new ChessboardRenderState(); }
+
     // 棋子/文字都在方块包围盒内（浮动高度很小），可交给视锥剔除；棋盘不在画面里就不渲染
     @Override
     public boolean shouldRenderOffScreen() { return false; }
@@ -133,6 +77,13 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
     public void extractRenderState(ChessboardBlockEntity entity, ChessboardRenderState s,
                                     float partialTick, Vec3 camera, ModelFeatureRenderer.CrumblingOverlay crumbling) {
         BlockEntityRenderState.extractBase(entity, s, crumbling);
+        // 远处不渲染：文字和动画棋子都跳过，省掉每帧的模型提交与字形批处理
+        double limit = Config.BOARD_RENDER_DISTANCE.get();
+        if (camera.distanceToSqr(Vec3.atCenterOf(entity.getBlockPos())) > limit * limit) {
+            s.tooFar = true;
+            return;
+        }
+        s.tooFar = false;
         BoardGameLogic g = entity.gameLogic();
         int total = g.rows() * g.cols();
         if (s.pieces == null || s.pieces.length != total) s.pieces = new int[total];
@@ -147,48 +98,20 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
             s.materials = new String[MaterialData.SLOT_COUNT];
         System.arraycopy(entity.materials(), 0, s.materials, 0, MaterialData.SLOT_COUNT);
 
-        AnimData a = animMap.computeIfAbsent(entity.getBlockPos(), k -> new AnimData());
-        if (a.prevPieces == null || a.prevPieces.length != total) a.prevPieces = new int[total];
         long now = System.currentTimeMillis();
-
-        boolean changed = !Arrays.equals(s.pieces, a.prevPieces);
-        if (changed) {
-            a.fromRow = a.fromCol = a.toRow = a.toCol = -1;
-            int moved = 0;
-            for (int i = 0; i < total; i++) {
-                if (a.prevPieces[i] != 0 && s.pieces[i] == 0) {
-                    a.fromRow = i / g.cols(); a.fromCol = i % g.cols();
-                    moved = a.prevPieces[i]; break;
-                }
-            }
-            for (int i = 0; i < total; i++) {
-                if (s.pieces[i] == moved && a.prevPieces[i] != moved) {
-                    a.toRow = i / g.cols(); a.toCol = i % g.cols(); break;
-                }
-            }
-            // 暗棋翻面动画：prev 为暗棋、now 为明棋
-            a.flipRow = a.flipCol = -1;
-            if (s.logic instanceof ChineseChessLogic) {
-                for (int i = 0; i < total; i++) {
-                    if (ChineseChessLogic.isHidden(a.prevPieces[i])
-                            && !ChineseChessLogic.isHidden(s.pieces[i])
-                            && a.prevPieces[i] != s.pieces[i]) {
-                        a.flipRow = i / g.cols(); a.flipCol = i % g.cols(); a.flipMs = now;
-                        break;
-                    }
-                }
-            }
-            a.moveMs = now;
-            System.arraycopy(s.pieces, 0, a.prevPieces, 0, total);
+        ChessboardAnimTracker.INSTANCE.ensureBaseline(entity); // 兜底：数据钩子漏掉时也能建立状态
+        var a = ChessboardAnimTracker.INSTANCE.get(entity.getBlockPos());
+        if (a == null) {
+            // 状态尚未建立：全部按静止处理（理论上有数据钩子会先跑）
+            s.lift = 0; s.unlift = 0;
+            s.moveT = 1f; s.flipT = 1f; s.winT = 1f;
+            s.unselRow = s.unselCol = -1;
+            s.fromRow = s.fromCol = s.toRow = s.toCol = -1;
+            s.flipRow = s.flipCol = -1;
+            s.winCells = null;
+            return;
         }
 
-        if (a.prevSelRow != s.selRow || a.prevSelCol != s.selCol) {
-            if (!changed && a.prevSelRow >= 0 && (s.selRow < 0 || s.selRow != a.prevSelRow || s.selCol != a.prevSelCol)) {
-                a.unselRow = a.prevSelRow; a.unselCol = a.prevSelCol; a.unselMs = now;
-            }
-            a.selMs = now;
-            a.prevSelRow = s.selRow; a.prevSelCol = s.selCol;
-        }
         float selT = Math.clamp((now - a.selMs) / (float) g.pieceLiftMs(), 0f, 1f);
         s.lift = (s.selRow >= 0) ? g.pieceLift() * selT : 0;
         s.unlift = g.pieceLift() * (1f - Math.clamp((now - a.unselMs) / (float) g.pieceLiftMs(), 0f, 1f));
@@ -198,48 +121,90 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
         s.toRow = a.toRow; s.toCol = a.toCol;
         s.flipRow = a.flipRow; s.flipCol = a.flipCol;
         s.flipT = Math.clamp((now - a.flipMs) / (float) g.pieceFlipMs(), 0f, 1f);
+        s.winCells = a.winCells;
+        s.winT = a.winCells != null
+                ? Math.clamp((now - a.winMs) / (float) ChessboardAnimTracker.WIN_ANIM_MS, 0f, 1f)
+                : 1f;
     }
 
     @Override
     public void submit(ChessboardRenderState s, PoseStack ps,
                        SubmitNodeCollector collector, CameraRenderState camera) {
+        if (s.tooFar) return;
         int light = s.lightCoords, overlay = OverlayTexture.NO_OVERLAY;
         float[] scratch = new float[2];
+        long now = System.currentTimeMillis();
 
         for (int row = 0; row < s.rows; row++) {
             for (int col = 0; col < s.cols; col++) {
-                int piece = s.pieces[row * s.cols + col];
+                int cell = row * s.cols + col;
+                int piece = s.pieces[cell];
                 if (piece == 0) continue;
+                // 飞行中的棋子由下方单独绘制（含文字）
                 if (s.moveT < 1f && s.toRow == row && s.toCol == col) continue;
 
-                boolean flipping = (s.flipRow == row && s.flipCol == col && s.flipT < 1f);
-                // 翻面前半程显示背面（暗棋）模型
-                int modelPiece = (flipping && s.flipT < 0.5f)
-                        ? ChineseChessLogic.hide(piece)
-                        : piece;
-                BlockModelRenderState model = cachedModel(s.blockPos, s.logic, modelPiece, s.materials);
-                boolean sel = (s.selRow == row && s.selCol == col);
-                float lift = sel ? s.lift : 0;
-                if (s.unselRow == row && s.unselCol == col && s.unlift > 0 && lift == 0) lift = s.unlift;
+                // 静止棋子在区块几何里，这里只画动画中的那几颗
+                if (ChessboardAnimTracker.INSTANCE.isDynamic(s.blockPos, cell, now)) {
+                    boolean flipping = (s.flipRow == row && s.flipCol == col && s.flipT < 1f);
+                    // 翻面前半程显示背面（暗棋）模型
+                    int modelPiece = (flipping && s.flipT < 0.5f)
+                            ? ChineseChessLogic.hide(piece)
+                            : piece;
+                    BlockModelRenderState model = cachedModel(s.blockPos, s.logic, modelPiece, s.materials);
+                    boolean sel = (s.selRow == row && s.selCol == col);
+                    float lift = sel ? s.lift : 0;
+                    if (s.unselRow == row && s.unselCol == col && s.unlift > 0 && lift == 0) lift = s.unlift;
 
-                gridPos(s, row, col, scratch);
-                float flipDeg = flipping ? 180f * (1f - s.flipT) : 0;
-                renderPiece(ps, collector, model, scratch[0], scratch[1], s, lift, light, overlay, modelPiece, flipDeg);
-                renderText(ps, collector, scratch[0], scratch[1], s, lift, light, modelPiece);
+                    // 连五胜利：微微跳起 + 左右倾斜晃动（逐个错峰；0~0.35 起跳 / 0.35~0.65 悬停歪动 / 0.65~1 回落）
+                    float winJump = 0, winTilt = 0;
+                    if (s.winT < 1f && s.winCells != null) {
+                        for (int i = 0; i < s.winCells.length; i++) {
+                            if (s.winCells[i] == cell) {
+                                float tj = Math.clamp(s.winT * 1.3f - i * 0.07f, 0f, 1f);
+                                if (tj < 0.35f) {
+                                    float k = tj / 0.35f;
+                                    winJump = 0.02f * (1f - (1f - k) * (1f - k)); // easeOut 起跳
+                                } else if (tj > 0.65f) {
+                                    winJump = 0.02f * (1f - (tj - 0.65f) / 0.35f); // 线性回落
+                                } else {
+                                    winJump = 0.02f; // 悬停
+                                }
+                                if (tj >= 0.35f && tj < 0.65f) {
+                                    float p = (tj - 0.35f) / 0.3f;
+                                    // 绕底部中心左右歪一下：/ 到 \ 一个完整来回，轻微衰减
+                                    winTilt = 10f * (float) Math.sin(p * Math.PI * 2f) * (1f - p * 0.5f);
+                                }
+                                break;
+                            }
+                        }
+                    }
+
+                    ChessboardPieceGeometry.gridPos(s.logic, s.facing, row, col, scratch);
+                    float flipDeg = flipping ? 180f * (1f - s.flipT) : 0;
+                    renderPiece(ps, collector, model, scratch[0], scratch[1], s, lift + winJump,
+                            light, overlay, modelPiece, flipDeg, winTilt);
+                    renderText(ps, collector, scratch[0], scratch[1], s, lift + winJump, light, modelPiece);
+                } else {
+                    // 静止棋子已烘焙：只补文字
+                    ChessboardPieceGeometry.gridPos(s.logic, s.facing, row, col, scratch);
+                    renderText(ps, collector, scratch[0], scratch[1], s, 0f, light, piece);
+                }
             }
         }
 
+        // 飞行中的棋子（起点已空、终点已从几何排除）
         if (s.moveT < 1f && s.fromRow >= 0 && s.toRow >= 0) {
             int p = s.pieces[s.toRow * s.cols + s.toCol];
             if (p != 0) {
                 BlockModelRenderState mm = cachedModel(s.blockPos, s.logic, p, s.materials);
                 float[] from = new float[2];
                 float[] to = new float[2];
-                gridPos(s, s.fromRow, s.fromCol, from);
-                gridPos(s, s.toRow, s.toCol, to);
+                ChessboardPieceGeometry.gridPos(s.logic, s.facing, s.fromRow, s.fromCol, from);
+                ChessboardPieceGeometry.gridPos(s.logic, s.facing, s.toRow, s.toCol, to);
                 float wx = lerp(from[0], to[0], s.moveT);
                 float wz = lerp(from[1], to[1], s.moveT);
-                renderPiece(ps, collector, mm, wx, wz, s, s.logic.pieceLift() * (1f - s.moveT), light, overlay, p, 0);
+                renderPiece(ps, collector, mm, wx, wz, s, s.logic.pieceLift() * (1f - s.moveT),
+                        light, overlay, p, 0, 0);
                 renderText(ps, collector, wx, wz, s, s.logic.pieceLift() * (1f - s.moveT), light, p);
             }
         }
@@ -247,13 +212,14 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
 
     private static void renderPiece(PoseStack ps, SubmitNodeCollector cc, BlockModelRenderState m,
                                      float wx, float wz, ChessboardRenderState s, float lift,
-                                     int light, int overlay, int piece, float flipDeg) {
+                                     int light, int overlay, int piece, float flipDeg, float winTilt) {
         float y = s.logic.pieceHeight() + lift;
         float cx = s.logic.pieceCenterX() / 16f, cz = s.logic.pieceCenterZ() / 16f;
         float sc = s.logic.pieceScale();
         ps.pushPose();
         ps.translate(wx, y, wz);
-        ps.mulPose(Axis.YP.rotationDegrees(facingDegrees(s.facing, false)));
+        ps.mulPose(Axis.YP.rotationDegrees(ChessboardPieceGeometry.facingDegrees(s.facing, false)));
+        if (winTilt != 0) ps.mulPose(Axis.ZP.rotationDegrees(winTilt)); // 胜利左右歪动，绕底部中心
         if (flipDeg != 0) ps.mulPose(Axis.XP.rotationDegrees(flipDeg));
         if (s.logic.pieceFlipX(piece)) ps.mulPose(Axis.XP.rotationDegrees(180));
         float ry = s.logic.pieceYRotation(piece);
@@ -273,7 +239,7 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
         float textH = s.logic.pieceHeight() + lift + s.logic.pieceTextHeight();
         ps.pushPose();
         ps.translate(wx, textH, wz);
-        ps.mulPose(Axis.YP.rotationDegrees(facingDegrees(s.facing, true)));
+        ps.mulPose(Axis.YP.rotationDegrees(ChessboardPieceGeometry.facingDegrees(s.facing, true)));
         if (s.logic.side(piece) != 0) ps.mulPose(Axis.YP.rotationDegrees(180));
         ps.mulPose(Axis.XP.rotationDegrees(90));
         float ts = s.logic.pieceTextScale();
@@ -283,28 +249,6 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
         cc.submitText(ps, tx, ty, text, false, Font.DisplayMode.POLYGON_OFFSET, light,
                 s.logic.textColor(piece), 0, 0xFF888888);
         ps.popPose();
-    }
-
-    /** 朝向对应的棋子 Y 旋转；text=true 时反向，用于文字始终面向玩家 */
-    private static float facingDegrees(Direction facing, boolean text) {
-        return switch (facing) {
-            case WEST -> text ? 90 : -90;
-            case NORTH -> 180;
-            case EAST -> text ? -90 : 90;
-            default -> 0;
-        };
-    }
-
-    /** 世界坐标 → 棋盘行列（写入 out，避免每格分配数组） */
-    private static void gridPos(ChessboardRenderState s, int row, int col, float[] out) {
-        float gx = s.logic.colPixel(col) / 16f;
-        float gz = s.logic.rowPixel(row) / 16f;
-        switch (s.facing) {
-            case WEST -> { out[0] = gz; out[1] = 1 - gx; }
-            case NORTH -> { out[0] = 1 - gx; out[1] = 1 - gz; }
-            case EAST -> { out[0] = 1 - gz; out[1] = gx; }
-            default -> { out[0] = gx; out[1] = gz; }
-        }
     }
 
     private static float lerp(float a, float b, float t) { return a + (b - a) * t; }
@@ -320,5 +264,9 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
         public int fromRow = -1, fromCol = -1, toRow = -1, toCol = -1;
         public int flipRow = -1, flipCol = -1;
         public float flipT = 1f;
+        public int[] winCells;
+        public float winT = 1f;
+        /** 超出渲染距离，本帧不画（见 Config#BOARD_RENDER_DISTANCE） */
+        public boolean tooFar;
     }
 }

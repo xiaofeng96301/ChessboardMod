@@ -122,6 +122,9 @@ public interface BoardGameLogic {
     /** 悔棋时还原下子方（默认空操作，落子类覆写） */
     default void onUndo() {}
 
+    /** 胜利连线（落子类游戏）：返回连成一线（如五子连珠）的格子下标数组，无胜利返回 null */
+    default int[] winLine(int[] pieces) { return null; }
+
     /**
      * 移动类默认点击：空点选子，点同色换选，点空格或异色走子。
      * 中国象棋/国际象棋共用；中国象棋需先处理暗棋翻面再调用。

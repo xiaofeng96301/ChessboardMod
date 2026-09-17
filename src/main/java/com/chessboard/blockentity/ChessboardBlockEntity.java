@@ -31,6 +31,7 @@ import java.util.Deque;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 /**
@@ -41,6 +42,13 @@ import java.util.function.Function;
 public class ChessboardBlockEntity extends BlockEntity {
 
     public static BlockEntityType<ChessboardBlockEntity> TYPE;
+
+    /**
+     * 客户端数据变化钩子（客户端注入，避免通用类引用客户端类；参考
+     * {@code ChessboardBlock#openScreenAction} 的注入模式）。
+     * 用于更新动画状态并触发所在区块的几何重建。
+     */
+    public static Consumer<ChessboardBlockEntity> clientDataHook = be -> {};
 
     private BoardGameLogic logic;
     private int[] pieces;
@@ -255,6 +263,7 @@ public class ChessboardBlockEntity extends BlockEntity {
         readMaterials(key -> in.getString(key).orElse(null));
         int histSize = in.getIntOr("histSize", 0);
         if (histSize > 0) restoreHistory(in.getIntArray("history").orElse(null));
+        if (level != null && level.isClientSide()) clientDataHook.accept(this);
     }
 
     @Override
@@ -276,6 +285,8 @@ public class ChessboardBlockEntity extends BlockEntity {
         selRow = in.getIntOr("selRow", -1);
         selCol = in.getIntOr("selCol", -1);
         readMaterials(key -> in.getString(key).orElse(null));
+        // 数据变化 → 更新动画状态并重建所在区块几何
+        if (level != null && level.isClientSide()) clientDataHook.accept(this);
     }
 
     @Override

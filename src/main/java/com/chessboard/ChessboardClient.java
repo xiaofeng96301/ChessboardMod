@@ -1,7 +1,9 @@
 package com.chessboard;
 
 import com.chessboard.block.ChessboardBlock;
+import com.chessboard.blockentity.ChessboardBlockEntity;
 import com.chessboard.client.renderer.ChessboardRenderer;
+import com.chessboard.client.renderer.ChessboardSectionGeometry;
 import com.chessboard.client.screen.ChessboardScreen;
 import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.KeyMapping;
@@ -16,6 +18,7 @@ import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
+import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.client.gui.ConfigurationScreen;
 import net.neoforged.neoforge.client.gui.IConfigScreenFactory;
 
@@ -67,6 +70,9 @@ public class ChessboardClient {
     static void onClientSetup(final FMLClientSetupEvent event) {
         BlockEntityRenderers.register(CHESSBOARD_BE.get(), ChessboardRenderer::new);
         ChessboardBlock.openScreenAction = pos -> openScreen(new ChessboardScreen(pos));
+        // 静止棋子烘焙进区块几何：数据变化时更新动画状态并重建所在区块
+        ChessboardBlockEntity.clientDataHook = ChessboardSectionGeometry::onBoardDataChanged;
+        NeoForge.EVENT_BUS.register(ChessboardSectionGeometry.class);
     }
 
     @SubscribeEvent

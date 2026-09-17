@@ -53,6 +53,33 @@ public class GomokuLogic implements PlaceGameLogic {
 
     public static boolean isGray(int piece) { return piece == GRAY; }
 
+    /** 连五检测：横向/纵向/两条对角线，返回连成 5 子的格子下标，无则 null（灰子不算） */
+    @Override
+    public int[] winLine(int[] pieces) {
+        int[][] dirs = {{0, 1}, {1, 0}, {1, 1}, {1, -1}};
+        for (int r = 0; r < ROWS; r++) {
+            for (int c = 0; c < COLS; c++) {
+                int p = pieces[idx(r, c)];
+                if (p == 0 || p == GRAY) continue;
+                for (int[] d : dirs) {
+                    int[] line = new int[5];
+                    line[0] = idx(r, c);
+                    boolean ok = true;
+                    for (int k = 1; k < 5; k++) {
+                        int rr = r + d[0] * k, cc = c + d[1] * k;
+                        if (rr < 0 || rr >= ROWS || cc < 0 || cc >= COLS || pieces[idx(rr, cc)] != p) {
+                            ok = false;
+                            break;
+                        }
+                        line[k] = idx(rr, cc);
+                    }
+                    if (ok) return line;
+                }
+            }
+        }
+        return null;
+    }
+
     @Override public int nextStone() { return nextSide == 0 ? BLACK : WHITE; }
 
     @Override public void toggleSide() { nextSide ^= 1; }
