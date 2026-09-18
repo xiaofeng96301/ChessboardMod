@@ -222,11 +222,21 @@ public final class ChessboardAnimTracker {
 
     // ── 区块重建 ──
 
-    /** 标记棋盘所在区块需要重建几何 */
+    /**
+     * 标记棋盘所在区块需要重建几何。
+     *
+     * <p>必须走 {@link net.minecraft.client.multiplayer.ClientLevel#setSectionDirtyWithNeighbors}，
+     * <b>不能</b>用 {@code LevelRenderer.setSectionDirty} —— 后者在 26.2 被删除了，
+     * 调用会在收到棋盘数据包时抛 {@code NoSuchMethodError} 直接崩客户端。
+     *
+     * <p>而这里用的入口在 26.1.2 和 26.2 都存在，且两版语义一致
+     * （26.1.2 上它同样转发给 {@code LevelRenderer.setSectionDirtyWithNeighbors}），
+     * 所以同一个 jar 可以同时跑两个版本。顺带把邻接区块也标脏 —— 棋子可能跨区块边界。
+     */
     public void markDirty(BlockPos pos) {
-        var lr = Minecraft.getInstance().levelRenderer;
-        if (lr == null) return;
-        lr.setSectionDirty(
+        var level = Minecraft.getInstance().level;
+        if (level == null) return;
+        level.setSectionDirtyWithNeighbors(
                 SectionPos.blockToSectionCoord(pos.getX()),
                 SectionPos.blockToSectionCoord(pos.getY()),
                 SectionPos.blockToSectionCoord(pos.getZ()));
