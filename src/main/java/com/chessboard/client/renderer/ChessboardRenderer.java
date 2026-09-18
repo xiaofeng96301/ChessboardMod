@@ -7,69 +7,74 @@ import com.chessboard.blockentity.ChessboardBlockEntity;
 import com.chessboard.game.BoardGameLogic;
 import com.chessboard.game.ChineseChessLogic;
 import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.vertex.QuadInstance;
 import com.mojang.math.Axis;
-import net.minecraft.client.gui.Font;
+import it.unimi.dsi.fastutil.objects.ObjectArrayList;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.SubmitNodeCollector;
-import net.minecraft.client.renderer.block.BlockModelRenderState;
-import net.minecraft.client.renderer.block.BlockModelResolver;
-import net.minecraft.client.renderer.block.model.BlockDisplayContext;
+import net.minecraft.client.renderer.block.BlockAndTintGetter;
+import net.minecraft.client.renderer.block.BlockModelLighter;
+import net.minecraft.client.renderer.block.BlockStateModelSet;
+import net.minecraft.client.renderer.block.dispatch.BlockStateModelPart;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
 import net.minecraft.client.renderer.blockentity.state.BlockEntityRenderState;
 import net.minecraft.client.renderer.feature.ModelFeatureRenderer;
+import net.minecraft.client.renderer.rendertype.RenderType;
+import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.client.renderer.state.level.CameraRenderState;
-import net.minecraft.client.renderer.texture.OverlayTexture;
-import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.network.chat.Style;
-import net.minecraft.util.FormattedCharSequence;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
+import net.neoforged.neoforge.client.model.ao.EnhancedBlockModelLighter;
 
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.List;
 
 /**
- * 棋盘棋子渲染器 —— 只负责<b>动画中</b>的棋子和文字。
+ * 棋盘棋子渲染器 —— 只负责<b>动画中</b>的棋子。
  *
  * <p>静止棋子在区块网格构建时已由 {@link ChessboardSectionGeometry} 烘焙进区块顶点，
  * 本渲染器不再重复绘制。动画状态来自 {@link ChessboardAnimTracker}（与区块几何共用同一份），
  * 因此两条路径绘制的格子天然互斥。
  *
- * <p>文字无法烘焙（字体图集 ≠ 地形图集，且需逐帧朝向相机 + POLYGON_OFFSET），
- * 所以始终由本渲染器绘制。
+ * <p><b>光照必须和区块几何路径完全一致</b>：两条路径的着色器都只做
+ * {@code Color * lightmap}（地形管线没有法线属性，面朝向明暗存在顶点色里），
+ * 所以这里也走同一个 {@link BlockModelLighter}，否则动画结束、棋子由渲染器交还给区块几何时
+ * 会出现亮度跳变。
  */
 public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEntity, ChessboardRenderer.ChessboardRenderState> {
 
-    private final BlockModelResolver modelResolver;
-    private final Font font;
-    /** 动态棋子的模型缓存（key: piece * 31 + materials 哈希）；同时最多只会有几颗 */
-    private final Map<BlockPos, Map<Integer, BlockModelRenderState>> modelCache = new HashMap<>();
+    /** 与区块几何路径同一个光照器；懒创建 —— 它内部取线程本地的 AO 缓存，必须在实际使用线程上构造 */
+    private BlockModelLighter lighter;
+    private final QuadInstance quadInstance = new QuadInstance();
+    private final List<BlockStateModelPart> parts = new ObjectArrayList<>();
+    /** 资源重载会重建渲染器实例，所以这里的引用不会过期 */
+    private BlockStateModelSet models;
 
-    public ChessboardRenderer(BlockEntityRendererProvider.Context ctx) {
-        this.modelResolver = ctx.blockModelResolver();
-        this.font = ctx.font();
+    public ChessboardRenderer(BlockEntityRendererProvider.Context ctx) {}
+
+    private BlockModelLighter lighter() {
+        if (lighter == null) lighter = EnhancedBlockModelLighter.newInstance();
+        return lighter;
     }
 
-    /** 取缓存棋子模型：仅当 piece/材质变化时才重新解析（submit 只读复用，见 BlockModelRenderState#submit） */
-    private BlockModelRenderState cachedModel(BlockPos pos, BoardGameLogic g, int piece, String[] materials) {
-        Map<Integer, BlockModelRenderState> byPiece = modelCache.computeIfAbsent(pos, k -> new HashMap<>());
-        int key = piece * 31 + Arrays.hashCode(materials);
-        BlockModelRenderState rs = byPiece.get(key);
-        if (rs == null) {
-            var ms = new BlockModelRenderState();
-            modelResolver.update(ms, ChessboardPieceGeometry.stateFor(g, piece, materials),
-                    BlockDisplayContext.create());
-            byPiece.put(key, ms);
-            rs = ms;
+    private BlockStateModelSet models() {
+        if (models == null) {
+            try {
+                models = Minecraft.getInstance().getModelManager().getBlockStateModelSet();
+            } catch (Exception e) {
+                return null; // 模型尚未初始化
+            }
         }
-        return rs;
+        return models;
     }
 
     @Override
     public ChessboardRenderState createRenderState() { return new ChessboardRenderState(); }
 
-    // 棋子/文字都在方块包围盒内（浮动高度很小），可交给视锥剔除；棋盘不在画面里就不渲染
+    // 必须为 false：SectionCompiler 只在这个值为 false 时才把方块实体加入**本区块**的渲染列表，
+    // 从而和烘焙棋子走同一套区块级视锥剔除。改成 true 会转入 ClientLevel 的全局列表，
+    // 而那个列表只在方块实体「被添加」时填充，已加载的棋盘不会补进去。
     @Override
     public boolean shouldRenderOffScreen() { return false; }
 
@@ -77,7 +82,7 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
     public void extractRenderState(ChessboardBlockEntity entity, ChessboardRenderState s,
                                     float partialTick, Vec3 camera, ModelFeatureRenderer.CrumblingOverlay crumbling) {
         BlockEntityRenderState.extractBase(entity, s, crumbling);
-        // 远处不渲染：文字和动画棋子都跳过，省掉每帧的模型提交与字形批处理
+        // 远处不渲染：省掉每帧的模型提交
         double limit = Config.BOARD_RENDER_DISTANCE.get();
         if (camera.distanceToSqr(Vec3.atCenterOf(entity.getBlockPos())) > limit * limit) {
             s.tooFar = true;
@@ -102,7 +107,7 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
         ChessboardAnimTracker.INSTANCE.ensureBaseline(entity); // 兜底：数据钩子漏掉时也能建立状态
         var a = ChessboardAnimTracker.INSTANCE.get(entity.getBlockPos());
         if (a == null) {
-            // 状态尚未建立：全部按静止处理（理论上有数据钩子会先跑）
+            // 状态尚未建立：全部按静止处理
             s.lift = 0; s.unlift = 0;
             s.moveT = 1f; s.flipT = 1f; s.winT = 1f;
             s.unselRow = s.unselCol = -1;
@@ -131,64 +136,57 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
     public void submit(ChessboardRenderState s, PoseStack ps,
                        SubmitNodeCollector collector, CameraRenderState camera) {
         if (s.tooFar) return;
-        int light = s.lightCoords, overlay = OverlayTexture.NO_OVERLAY;
+        BlockAndTintGetter region = Minecraft.getInstance().level;
+        if (region == null || models() == null) return;
         float[] scratch = new float[2];
-        long now = System.currentTimeMillis();
 
         for (int row = 0; row < s.rows; row++) {
             for (int col = 0; col < s.cols; col++) {
                 int cell = row * s.cols + col;
                 int piece = s.pieces[cell];
                 if (piece == 0) continue;
-                // 飞行中的棋子由下方单独绘制（含文字）
+                // 飞行中的棋子由下方单独绘制
                 if (s.moveT < 1f && s.toRow == row && s.toCol == col) continue;
-
                 // 静止棋子在区块几何里，这里只画动画中的那几颗
-                if (ChessboardAnimTracker.INSTANCE.isDynamic(s.blockPos, cell, now)) {
-                    boolean flipping = (s.flipRow == row && s.flipCol == col && s.flipT < 1f);
-                    // 翻面前半程显示背面（暗棋）模型
-                    int modelPiece = (flipping && s.flipT < 0.5f)
-                            ? ChineseChessLogic.hide(piece)
-                            : piece;
-                    BlockModelRenderState model = cachedModel(s.blockPos, s.logic, modelPiece, s.materials);
-                    boolean sel = (s.selRow == row && s.selCol == col);
-                    float lift = sel ? s.lift : 0;
-                    if (s.unselRow == row && s.unselCol == col && s.unlift > 0 && lift == 0) lift = s.unlift;
+                if (!ChessboardAnimTracker.INSTANCE.isDynamic(s.blockPos, cell)) continue;
 
-                    // 连五胜利：微微跳起 + 左右倾斜晃动（逐个错峰；0~0.35 起跳 / 0.35~0.65 悬停歪动 / 0.65~1 回落）
-                    float winJump = 0, winTilt = 0;
-                    if (s.winT < 1f && s.winCells != null) {
-                        for (int i = 0; i < s.winCells.length; i++) {
-                            if (s.winCells[i] == cell) {
-                                float tj = Math.clamp(s.winT * 1.3f - i * 0.07f, 0f, 1f);
-                                if (tj < 0.35f) {
-                                    float k = tj / 0.35f;
-                                    winJump = 0.02f * (1f - (1f - k) * (1f - k)); // easeOut 起跳
-                                } else if (tj > 0.65f) {
-                                    winJump = 0.02f * (1f - (tj - 0.65f) / 0.35f); // 线性回落
-                                } else {
-                                    winJump = 0.02f; // 悬停
-                                }
-                                if (tj >= 0.35f && tj < 0.65f) {
-                                    float p = (tj - 0.35f) / 0.3f;
-                                    // 绕底部中心左右歪一下：/ 到 \ 一个完整来回，轻微衰减
-                                    winTilt = 10f * (float) Math.sin(p * Math.PI * 2f) * (1f - p * 0.5f);
-                                }
-                                break;
+                boolean flipping = (s.flipRow == row && s.flipCol == col && s.flipT < 1f);
+                // 翻面前半程显示背面（暗棋）模型
+                int modelPiece = (flipping && s.flipT < 0.5f)
+                        ? ChineseChessLogic.hide(piece)
+                        : piece;
+                boolean sel = (s.selRow == row && s.selCol == col);
+                float lift = sel ? s.lift : 0;
+                if (s.unselRow == row && s.unselCol == col && s.unlift > 0 && lift == 0) lift = s.unlift;
+
+                // 连五胜利：微微跳起 + 左右倾斜晃动（逐个错峰；0~0.35 起跳 / 0.35~0.65 悬停歪动 / 0.65~1 回落）
+                float winJump = 0, winTilt = 0;
+                if (s.winT < 1f && s.winCells != null) {
+                    for (int i = 0; i < s.winCells.length; i++) {
+                        if (s.winCells[i] == cell) {
+                            float tj = Math.clamp(s.winT * 1.3f - i * 0.07f, 0f, 1f);
+                            if (tj < 0.35f) {
+                                float k = tj / 0.35f;
+                                winJump = 0.02f * (1f - (1f - k) * (1f - k)); // easeOut 起跳
+                            } else if (tj > 0.65f) {
+                                winJump = 0.02f * (1f - (tj - 0.65f) / 0.35f); // 线性回落
+                            } else {
+                                winJump = 0.02f; // 悬停
                             }
+                            if (tj >= 0.35f && tj < 0.65f) {
+                                float p = (tj - 0.35f) / 0.3f;
+                                // 绕底部中心左右歪一下：/ 到 \ 一个完整来回，轻微衰减
+                                winTilt = 10f * (float) Math.sin(p * Math.PI * 2f) * (1f - p * 0.5f);
+                            }
+                            break;
                         }
                     }
-
-                    ChessboardPieceGeometry.gridPos(s.logic, s.facing, row, col, scratch);
-                    float flipDeg = flipping ? 180f * (1f - s.flipT) : 0;
-                    renderPiece(ps, collector, model, scratch[0], scratch[1], s, lift + winJump,
-                            light, overlay, modelPiece, flipDeg, winTilt);
-                    renderText(ps, collector, scratch[0], scratch[1], s, lift + winJump, light, modelPiece);
-                } else {
-                    // 静止棋子已烘焙：只补文字
-                    ChessboardPieceGeometry.gridPos(s.logic, s.facing, row, col, scratch);
-                    renderText(ps, collector, scratch[0], scratch[1], s, 0f, light, piece);
                 }
+
+                ChessboardPieceGeometry.gridPos(s.logic, s.facing, row, col, scratch);
+                float flipDeg = flipping ? 180f * (1f - s.flipT) : 0;
+                renderPiece(ps, collector, s, region, scratch[0], scratch[1], lift + winJump,
+                        modelPiece, flipDeg, winTilt);
             }
         }
 
@@ -196,29 +194,49 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
         if (s.moveT < 1f && s.fromRow >= 0 && s.toRow >= 0) {
             int p = s.pieces[s.toRow * s.cols + s.toCol];
             if (p != 0) {
-                BlockModelRenderState mm = cachedModel(s.blockPos, s.logic, p, s.materials);
                 float[] from = new float[2];
                 float[] to = new float[2];
                 ChessboardPieceGeometry.gridPos(s.logic, s.facing, s.fromRow, s.fromCol, from);
                 ChessboardPieceGeometry.gridPos(s.logic, s.facing, s.toRow, s.toCol, to);
                 float wx = lerp(from[0], to[0], s.moveT);
                 float wz = lerp(from[1], to[1], s.moveT);
-                renderPiece(ps, collector, mm, wx, wz, s, s.logic.pieceLift() * (1f - s.moveT),
-                        light, overlay, p, 0, 0);
-                renderText(ps, collector, wx, wz, s, s.logic.pieceLift() * (1f - s.moveT), light, p);
+                renderPiece(ps, collector, s, region, wx, wz, s.logic.pieceLift() * (1f - s.moveT),
+                        p, 0, 0);
             }
         }
     }
 
-    private static void renderPiece(PoseStack ps, SubmitNodeCollector cc, BlockModelRenderState m,
-                                     float wx, float wz, ChessboardRenderState s, float lift,
-                                     int light, int overlay, int piece, float flipDeg, float winTilt) {
+    /** 绘制一颗棋子：圆片模型 + 其上的汉字贴图（汉字与棋子共用变换链，只是朝向按文字规则） */
+    private void renderPiece(PoseStack ps, SubmitNodeCollector cc, ChessboardRenderState s,
+                             BlockAndTintGetter region, float wx, float wz, float lift,
+                             int piece, float flipDeg, float winTilt) {
+        submitModel(ps, cc, s, region, ChessboardPieceGeometry.stateFor(s.logic, piece, s.materials),
+                wx, wz, lift, piece, flipDeg, winTilt, false);
+
+        BlockState charState = ChessboardPieceGeometry.charStateFor(s.logic, piece);
+        if (charState != null) {
+            submitModel(ps, cc, s, region, charState, wx, wz, lift, piece, flipDeg, winTilt, true);
+        }
+    }
+
+    /**
+     * 按与区块几何路径<b>完全相同</b>的变换与光照发射模型。
+     * 用 {@code submitCustomGeometry} 自己写顶点，而不是 {@code BlockModelRenderState.submit}，
+     * 因为后者不会加面朝向明暗 —— 那样两条路径亮度不一致，交接时就会闪。
+     */
+    private void submitModel(PoseStack ps, SubmitNodeCollector cc, ChessboardRenderState s,
+                             BlockAndTintGetter region, BlockState state,
+                             float wx, float wz, float lift,
+                             int piece, float flipDeg, float winTilt, boolean textRotation) {
         float y = s.logic.pieceHeight() + lift;
         float cx = s.logic.pieceCenterX() / 16f, cz = s.logic.pieceCenterZ() / 16f;
         float sc = s.logic.pieceScale();
+        // 圆片类棋子的朝向跟随文字（含阵营翻转），保证棋子和自己的汉字完全对齐
+        boolean textLike = textRotation || s.logic.pieceFollowsTextRotation();
         ps.pushPose();
         ps.translate(wx, y, wz);
-        ps.mulPose(Axis.YP.rotationDegrees(ChessboardPieceGeometry.facingDegrees(s.facing, false)));
+        ps.mulPose(Axis.YP.rotationDegrees(ChessboardPieceGeometry.facingDegrees(s.facing, textLike)));
+        if (textLike && s.logic.side(piece) != 0) ps.mulPose(Axis.YP.rotationDegrees(180));
         if (winTilt != 0) ps.mulPose(Axis.ZP.rotationDegrees(winTilt)); // 胜利左右歪动，绕底部中心
         if (flipDeg != 0) ps.mulPose(Axis.XP.rotationDegrees(flipDeg));
         if (s.logic.pieceFlipX(piece)) ps.mulPose(Axis.XP.rotationDegrees(180));
@@ -226,28 +244,20 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
         if (ry != 0) ps.mulPose(Axis.YP.rotationDegrees(ry));
         ps.scale(sc, sc, sc);
         ps.translate(-cx, 0, -cz);
-        m.submit(ps, cc, light, overlay, 0);
-        ps.popPose();
-    }
 
-    private void renderText(PoseStack ps, SubmitNodeCollector cc,
-                            float wx, float wz, ChessboardRenderState s,
-                            float lift, int light, int piece) {
-        String name = s.logic.pieceName(piece);
-        if (name.isEmpty()) return;
-        FormattedCharSequence text = FormattedCharSequence.forward(name, Style.EMPTY);
-        float textH = s.logic.pieceHeight() + lift + s.logic.pieceTextHeight();
-        ps.pushPose();
-        ps.translate(wx, textH, wz);
-        ps.mulPose(Axis.YP.rotationDegrees(ChessboardPieceGeometry.facingDegrees(s.facing, true)));
-        if (s.logic.side(piece) != 0) ps.mulPose(Axis.YP.rotationDegrees(180));
-        ps.mulPose(Axis.XP.rotationDegrees(90));
-        float ts = s.logic.pieceTextScale();
-        ps.scale(ts, ts, ts);
-        float tx = -font.width(text) / 2f + s.logic.pieceTextOffsetX();
-        float ty = -font.lineHeight / 2f + s.logic.pieceTextOffsetZ();
-        cc.submitText(ps, tx, ty, text, false, Font.DisplayMode.POLYGON_OFFSET, light,
-                s.logic.textColor(piece), 0, 0xFF888888);
+        BlockStateModelSet set = models();
+        if (set == null) {
+            ps.popPose();
+            return;
+        }
+        // 必须走 BLOCK 管线（core/block）：它和地形着色器同一条公式 Color * lightmap。
+        // Sheets.cutoutBlockSheet() 那套走 core/entity，会再按法线算一次光照，
+        // 叠加到我们已经烘好的面朝向明暗上就会把侧边压暗两次。
+        // 棋子与汉字贴图都是全不透明/二值 alpha，走 cutout 即可（与区块里的 CUTOUT 图层对应）。
+        RenderType sheet = RenderTypes.cutoutMovingBlock();
+        cc.submitCustomGeometry(ps, sheet, (pose, vc) ->
+                ChessboardPieceGeometry.emitQuads(vc, pose, region, s.blockPos, state,
+                        lighter(), set, parts, quadInstance));
         ps.popPose();
     }
 

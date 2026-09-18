@@ -2,6 +2,8 @@ package com.chessboard.client.renderer;
 
 import com.chessboard.ChessboardMod;
 import com.chessboard.MaterialData;
+import com.chessboard.block.ChessChar;
+import com.chessboard.block.ChessCharBlock;
 import com.chessboard.block.ChessMaterial;
 import com.chessboard.block.ChessPieceBlock;
 import com.chessboard.game.BoardGameLogic;
@@ -11,16 +13,22 @@ import com.chessboard.game.GomokuLogic;
 import com.chessboard.game.TicTacToeLogic;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.QuadInstance;
+import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.math.Axis;
+import it.unimi.dsi.fastutil.objects.ObjectArrayList;
+import net.minecraft.client.renderer.block.BlockAndTintGetter;
+import net.minecraft.client.renderer.block.BlockModelLighter;
 import net.minecraft.client.renderer.block.BlockStateModelSet;
 import net.minecraft.client.renderer.block.dispatch.BlockStateModel;
 import net.minecraft.client.renderer.block.dispatch.BlockStateModelPart;
 import net.minecraft.client.renderer.texture.OverlayTexture;
+import net.minecraft.client.resources.model.geometry.BakedQuad;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.block.state.BlockState;
 import net.neoforged.neoforge.client.event.AddSectionGeometryEvent.SectionRenderingContext;
+import net.neoforged.neoforge.client.model.ao.EnhancedBlockModelLighter;
 
 import java.util.List;
 
@@ -95,6 +103,18 @@ public final class ChessboardPieceGeometry {
         };
     }
 
+    /**
+     * 棋子上的汉字方块状态。非中国象棋、或暗棋（背面朝上）返回 null —— 不渲染汉字。
+     * 汉字已做成贴图，可与棋子一起烘焙进区块几何。
+     */
+    public static BlockState charStateFor(BoardGameLogic g, int piece) {
+        if (!(g instanceof ChineseChessLogic)) return null;
+        if (ChineseChessLogic.isHidden(piece)) return null;
+        ChessChar c = ChessChar.of(ChineseChessLogic.type(piece), g.side(piece));
+        return c == null ? null
+                : ChessboardMod.CHINESE_PIECE_CHAR.get().defaultBlockState().setValue(ChessCharBlock.CHAR, c);
+    }
+
     /** 按棋盘上保存的材质配置选择棋子方块状态 */
     private static BlockState withMaterial(ChessPieceBlock block, String[] materials, int slot) {
         String mat = materials != null && slot < materials.length ? materials[slot] : null;
@@ -103,52 +123,122 @@ public final class ChessboardPieceGeometry {
     }
 
     /**
-     * 把一颗静止棋子发射进区块几何（worker 线程）。
+     * 单块棋盘的发射上下文：一次区块重建内复用同一套缓冲，避免反复分配。
      *
-     * <p>变换链必须与 {@code ChessboardRenderer.renderPiece} 保持一致：
-     * 平移 → 朝向 Y 旋转 → 翻转 X → 棋子自身 Y 旋转 → 缩放 → 移到模型中心。
-     * 法线变换与 UV 解包由 {@code VertexConsumer.putBakedQuad} 内部处理。
-     *
-     * @param ox,oy,oz 棋盘相对区块原点的偏移
-     * @param wx,wz    棋子在方块内的局部坐标
-     * @param light    打包光照（由调用方按棋盘位置算一次）
+     * <p><b>{@code lighter} 不可省略</b> —— 地形管线的顶点着色器没有法线属性，
+     * 面朝向明暗（顶面亮、侧面暗）是由原版光照器通过 {@code QuadInstance.setColor} 写进顶点色的，
+     * 同时它也负责逐顶点平滑光照（AO）。少了它棋子会一片死白、毫无明暗。
      */
-    public static void emitPiece(SectionRenderingContext ctx, PoseStack ps, QuadInstance qi,
-                                 List<BlockStateModelPart> parts, BlockStateModelSet models,
-                                 BlockState state, float ox, float oy, float oz,
-                                 float wx, float wz, BoardGameLogic g,
-                                 Direction facing, int piece, int light) {
+    public static final class EmitContext {
+        final SectionRenderingContext ctx;
+        final BlockAndTintGetter region;
+        final BlockStateModelSet models;
+        final BlockModelLighter lighter;
+        final PoseStack ps = new PoseStack();
+        final QuadInstance qi = new QuadInstance();
+        final List<BlockStateModelPart> parts = new ObjectArrayList<>();
+        final BlockPos boardPos;
+        final float ox, oy, oz;
+
+        public EmitContext(SectionRenderingContext ctx, BlockStateModelSet models,
+                           BlockPos boardPos, float ox, float oy, float oz) {
+            this.ctx = ctx;
+            this.models = models;
+            this.region = ctx.getRegion();
+            this.lighter = EnhancedBlockModelLighter.newInstance();
+            this.boardPos = boardPos;
+            this.ox = ox; this.oy = oy; this.oz = oz;
+        }
+    }
+
+    /**
+     * 把一颗棋子（或其汉字）发射进区块几何。
+     *
+     * <p>光照与明暗完全走原版那一套 —— 逐面取光照、再交给光照器算逐顶点光照与面朝向明暗，
+     * 保证和区块里其他方块看起来一致。
+     */
+    public static void emitPiece(EmitContext ec, BlockState state, float wx, float wz,
+                                 BoardGameLogic g, Direction facing, int piece, boolean textRotation) {
         float cx = g.pieceCenterX() / 16f, cz = g.pieceCenterZ() / 16f;
         float sc = g.pieceScale();
+        PoseStack ps = ec.ps;
 
+        // 圆片类棋子的朝向跟随文字（含阵营翻转），保证棋子和自己的汉字完全对齐
+        boolean textLike = textRotation || g.pieceFollowsTextRotation();
         ps.pushPose();
-        ps.translate(ox + wx, oy + g.pieceHeight(), oz + wz);
-        ps.mulPose(Axis.YP.rotationDegrees(facingDegrees(facing, false)));
+        ps.translate(ec.ox + wx, ec.oy + g.pieceHeight(), ec.oz + wz);
+        ps.mulPose(Axis.YP.rotationDegrees(facingDegrees(facing, textLike)));
+        if (textLike && g.side(piece) != 0) ps.mulPose(Axis.YP.rotationDegrees(180));
         if (g.pieceFlipX(piece)) ps.mulPose(Axis.XP.rotationDegrees(180));
         float ry = g.pieceYRotation(piece);
         if (ry != 0) ps.mulPose(Axis.YP.rotationDegrees(ry));
         ps.scale(sc, sc, sc);
         ps.translate(-cx, 0, -cz);
 
-        qi.setLightCoords(light);
-        qi.setOverlayCoords(OverlayTexture.NO_OVERLAY);
-
-        parts.clear();
-        BlockStateModel model = models.get(state);
-        model.collectParts(ctx.getRegion(), BlockPos.ZERO, state, RandomSource.create(MODEL_SEED), parts);
+        ec.lighter.reset(); // 必须：把 cache 注入 AO 计算器，否则 prepareQuad* 会 NPE
+        ec.parts.clear();
+        BlockStateModel model = ec.models.get(state);
+        model.collectParts(ec.region, ec.boardPos, state, RandomSource.create(MODEL_SEED), ec.parts);
 
         PoseStack.Pose pose = ps.last();
-        for (BlockStateModelPart part : parts) {
+        for (BlockStateModelPart part : ec.parts) {
             for (Direction d : DIRECTIONS) {
-                for (var q : part.getQuads(d)) {
-                    ctx.getOrCreateChunkBuffer(q.materialInfo().layer()).putBakedQuad(pose, q, qi);
+                List<BakedQuad> quads = part.getQuads(d);
+                if (quads.isEmpty()) continue;
+                int lightCoords = ec.lighter.getLightCoords(state, ec.region, ec.boardPos.relative(d));
+                for (BakedQuad q : quads) {
+                    putQuad(ec.ctx.getOrCreateChunkBuffer(q.materialInfo().layer()),
+                            ec.region, ec.boardPos, state, ec.lighter, q, lightCoords, ec.qi, pose);
                 }
             }
             // 无方向（不参与面剔除）的四边形
-            for (var q : part.getQuads(null)) {
-                ctx.getOrCreateChunkBuffer(q.materialInfo().layer()).putBakedQuad(pose, q, qi);
+            for (BakedQuad q : part.getQuads(null)) {
+                putQuad(ec.ctx.getOrCreateChunkBuffer(q.materialInfo().layer()),
+                        ec.region, ec.boardPos, state, ec.lighter, q, -1, ec.qi, pose);
             }
         }
         ps.popPose();
+    }
+
+    /**
+     * 把整个模型的四边形写进一个 VertexConsumer —— 方块实体渲染器路径用。
+     *
+     * <p>光照与明暗复用 {@link #putQuad}，与区块几何路径完全一致，
+     * 这样动画中的棋子（渲染器画）和静态棋子（烘焙进区块）亮度相同，
+     * 交接时不会出现亮度跳变。
+     */
+    public static void emitQuads(VertexConsumer vc, PoseStack.Pose pose, BlockAndTintGetter region,
+                                 BlockPos boardPos, BlockState state, BlockModelLighter lighter,
+                                 BlockStateModelSet models, List<BlockStateModelPart> parts,
+                                 QuadInstance qi) {
+        lighter.reset(); // 必须：把 cache 注入 AO 计算器，否则 prepareQuad* 会 NPE
+        parts.clear();
+        models.get(state).collectParts(region, boardPos, state, RandomSource.create(MODEL_SEED), parts);
+        for (BlockStateModelPart part : parts) {
+            for (Direction d : DIRECTIONS) {
+                List<BakedQuad> quads = part.getQuads(d);
+                if (quads.isEmpty()) continue;
+                int lightCoords = lighter.getLightCoords(state, region, boardPos.relative(d));
+                for (BakedQuad q : quads) {
+                    putQuad(vc, region, boardPos, state, lighter, q, lightCoords, qi, pose);
+                }
+            }
+            for (BakedQuad q : part.getQuads(null)) {
+                putQuad(vc, region, boardPos, state, lighter, q, -1, qi, pose);
+            }
+        }
+    }
+
+    /** 交给原版光照器算好逐顶点光照与面朝向明暗后写入缓冲 */
+    private static void putQuad(VertexConsumer vc, BlockAndTintGetter region, BlockPos boardPos,
+                                BlockState state, BlockModelLighter lighter, BakedQuad q,
+                                int lightCoords, QuadInstance qi, PoseStack.Pose pose) {
+        if (q.materialInfo().ambientOcclusion()) {
+            lighter.prepareQuadAmbientOcclusion(region, state, boardPos, q, qi);
+        } else {
+            lighter.prepareQuadFlat(region, state, boardPos, lightCoords, q, qi);
+        }
+        qi.setOverlayCoords(OverlayTexture.NO_OVERLAY);
+        vc.putBakedQuad(pose, q, qi);
     }
 }

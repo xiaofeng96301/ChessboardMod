@@ -1,5 +1,6 @@
 package com.chessboard;
 
+import com.chessboard.block.ChessCharBlock;
 import com.chessboard.block.ChessMaterial;
 import com.chessboard.block.ChessPieceBlock;
 import com.chessboard.block.ChessboardBlock;
@@ -83,6 +84,10 @@ public class ChessboardMod {
             "tictactoe_board", TicTacToeLogic.INSTANCE, new TicTacToeLogic(3.28f, 9.34f));
     static final DeferredBlock<ChessboardBlock> CHESS_BOARD = registerBoard(
             "chess_board", ChessLogic.INSTANCE, new ChessLogic(2.0f, 12.0f));
+
+    /** 棋子汉字模型方块（纯渲染用，带汉字属性） */
+    public static final DeferredBlock<ChessCharBlock> CHINESE_PIECE_CHAR = BLOCKS.registerBlock(
+            "chinese_piece_char", ChessCharBlock::new, p -> p.mapColor(MapColor.WOOD).noOcclusion());
 
     // 棋子模型方块（带材质属性）
     public static final DeferredBlock<ChessPieceBlock> CHESS_PIECE_MODEL = registerPiece("chess_piece");

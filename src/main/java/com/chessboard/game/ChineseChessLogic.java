@@ -90,6 +90,9 @@ public class ChineseChessLogic implements BoardGameLogic {
     @Override public int side(int piece) { return (piece >> 3) & 1; }
     @Override public String codePrefix() { return "xq"; }
 
+    /** 圆片没有正反面，朝向跟随汉字（并按阵营翻转），否则黑方棋子和汉字会差 180° */
+    @Override public boolean pieceFollowsTextRotation() { return true; }
+
     // ── 文字位置（象棋默认值，按需调整）──
     @Override public float pieceTextHeight() { return 0.0161f; }
     @Override public float pieceTextOffsetX() { return 0.7f; }

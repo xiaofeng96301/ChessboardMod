@@ -34,6 +34,13 @@ public interface BoardGameLogic {
     /** 棋子额外绕 Y 轴旋转角度（度），用于调整朝向 */
     default float pieceYRotation(int piece) { return 0; }
 
+    /**
+     * 棋子模型是否跟随文字朝向（并按阵营翻转 180°）。
+     * 中国象棋的圆片没有正反面之分，方向应与汉字一致 —— 否则黑方棋子会和自己的汉字差 180°。
+     * 国际象棋的朝向已由 {@link #pieceYRotation} 编码，保持 false。
+     */
+    default boolean pieceFollowsTextRotation() { return false; }
+
     /** 模型中心 X 偏移（像素/16），默认 2.5 */
     default float pieceCenterX() { return 2.5f; }
     /** 模型中心 Z 偏移（像素/16），默认 2.5 */

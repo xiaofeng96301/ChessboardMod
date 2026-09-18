@@ -1,0 +1,6 @@
+{
+  "parent": "chessboard:block/piece_char_template",
+  "textures": {
+    "0": "chessboard:block/piece_char/ju_red"
+  }
+}

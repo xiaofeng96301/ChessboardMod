@@ -1,0 +1,46 @@
+{
+  "variants": {
+    "char=shuai_red": {
+      "model": "chessboard:block/piece_char_shuai_red"
+    },
+    "char=jiang_black": {
+      "model": "chessboard:block/piece_char_jiang_black"
+    },
+    "char=shi_red": {
+      "model": "chessboard:block/piece_char_shi_red"
+    },
+    "char=shi_black": {
+      "model": "chessboard:block/piece_char_shi_black"
+    },
+    "char=xiang_red": {
+      "model": "chessboard:block/piece_char_xiang_red"
+    },
+    "char=xiang_black": {
+      "model": "chessboard:block/piece_char_xiang_black"
+    },
+    "char=ma_red": {
+      "model": "chessboard:block/piece_char_ma_red"
+    },
+    "char=ma_black": {
+      "model": "chessboard:block/piece_char_ma_black"
+    },
+    "char=ju_red": {
+      "model": "chessboard:block/piece_char_ju_red"
+    },
+    "char=ju_black": {
+      "model": "chessboard:block/piece_char_ju_black"
+    },
+    "char=pao_red": {
+      "model": "chessboard:block/piece_char_pao_red"
+    },
+    "char=pao_black": {
+      "model": "chessboard:block/piece_char_pao_black"
+    },
+    "char=bing_red": {
+      "model": "chessboard:block/piece_char_bing_red"
+    },
+    "char=zu_black": {
+      "model": "chessboard:block/piece_char_zu_black"
+    }
+  }
+}

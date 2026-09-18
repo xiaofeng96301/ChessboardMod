@@ -3,13 +3,8 @@ package com.chessboard.client.renderer;
 import com.chessboard.block.ChessboardBlock;
 import com.chessboard.blockentity.ChessboardBlockEntity;
 import com.chessboard.game.BoardGameLogic;
-import com.mojang.blaze3d.vertex.PoseStack;
-import com.mojang.blaze3d.vertex.QuadInstance;
-import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.block.BlockStateModelSet;
-import net.minecraft.client.renderer.block.dispatch.BlockStateModelPart;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.SectionPos;
 import net.minecraft.world.level.Level;
@@ -102,29 +97,30 @@ public final class ChessboardSectionGeometry {
 
         // 主线程预构建方块状态：worker 线程不碰注册表
         Map<Integer, BlockState> states = new HashMap<>();
+        Map<Integer, BlockState> charStates = new HashMap<>();
         for (int p : pieces) {
-            if (p == 0) continue;
-            states.computeIfAbsent(p, k -> ChessboardPieceGeometry.stateFor(g, k, materials));
+            if (p == 0 || states.containsKey(p)) continue;
+            states.put(p, ChessboardPieceGeometry.stateFor(g, p, materials));
+            BlockState cs = ChessboardPieceGeometry.charStateFor(g, p);
+            if (cs != null) charStates.put(p, cs);
         }
         BlockPos bp = board.getBlockPos();
         return new BoardGeometrySnapshot(bp, bp.subtract(origin),
                 board.getBlockState().getValue(ChessboardBlock.FACING),
-                g, pieces, excluded, states);
+                g, pieces, excluded, states, charStates);
     }
 
     /** worker 线程：把静止棋子发射进区块顶点缓冲 */
     private static void emit(AddSectionGeometryEvent.SectionRenderingContext ctx,
                              List<BoardGeometrySnapshot> snaps, BlockStateModelSet models) {
-        PoseStack ps = new PoseStack();
-        QuadInstance qi = new QuadInstance();
-        List<BlockStateModelPart> parts = new ObjectArrayList<>();
         float[] pos = new float[2];
 
         for (BoardGeometrySnapshot s : snaps) {
-            // 与 BlockEntityRenderState.extractBase 同函数同位置，保证烘焙版与动态版光照一致
-            int light = LevelRenderer.getLightCoords(ctx.getRegion(), s.boardPos());
             BoardGameLogic g = s.logic();
             int cols = g.cols();
+            // 每块棋盘一个上下文：内含原版光照器（逐顶点光照 + 面朝向明暗）
+            var ec = new ChessboardPieceGeometry.EmitContext(ctx, models, s.boardPos(),
+                    s.offset().getX(), s.offset().getY(), s.offset().getZ());
             for (int row = 0; row < g.rows(); row++) {
                 for (int col = 0; col < cols; col++) {
                     int cell = row * cols + col;
@@ -133,9 +129,12 @@ public final class ChessboardSectionGeometry {
                     BlockState state = s.states().get(piece);
                     if (state == null) continue;
                     ChessboardPieceGeometry.gridPos(g, s.facing(), row, col, pos);
-                    ChessboardPieceGeometry.emitPiece(ctx, ps, qi, parts, models, state,
-                            s.offset().getX(), s.offset().getY(), s.offset().getZ(),
-                            pos[0], pos[1], g, s.facing(), piece, light);
+                    ChessboardPieceGeometry.emitPiece(ec, state, pos[0], pos[1], g, s.facing(), piece, false);
+                    // 汉字：贴在棋子圆片上的第二层
+                    BlockState charState = s.charStates().get(piece);
+                    if (charState != null) {
+                        ChessboardPieceGeometry.emitPiece(ec, charState, pos[0], pos[1], g, s.facing(), piece, true);
+                    }
                 }
             }
         }

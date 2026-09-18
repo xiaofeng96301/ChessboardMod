@@ -34,8 +34,6 @@ public final class ChessboardAnimTracker {
 
     /** 五子棋连五胜利动画总时长（毫秒） */
     public static final int WIN_ANIM_MS = 1500;
-    /** 动画结束后方块实体渲染器继续绘制的宽限期：等区块网格重建完再交还，避免出现空隙 */
-    public static final long GRACE_MS = 300;
 
     private final Map<BlockPos, BoardAnim> boards = new HashMap<>();
 
@@ -52,10 +50,19 @@ public final class ChessboardAnimTracker {
         int flipRow = -1, flipCol = -1;
         int[] winCells;
         long selMs, unselMs, moveMs, flipMs, winMs;
-        /** 每格动画截止时刻：0 = 静止可烘焙，Long.MAX_VALUE = 选中期间一直动态 */
+        /** 每格期望由渲染器绘制：0 = 交给几何烘焙，非 0 = 渲染器画。只在数据变化时重算（见 {@link #recompute}） */
         long[] dynamicUntil;
-        boolean rebakePending;
-        long rebakeAt;
+        /**
+         * 最近两代「几何快照的排除集」。
+         *
+         * <p>网格是异步重建的，我们观测不到它何时换成新的，但渲染器必须画的恰恰是
+         * <b>当前显示的那份网格所排除的格子</b>。取最近两代快照的并集即可给出严格保证：
+         * 显示的网格要么是当前代要么是上一代，并集必然覆盖它 → 不会出现空档。
+         * 多画的只有「本代刚释放」的格子，而它们此刻动画早已播完、处于静止姿态，
+         * 与烘焙的完全一致，看不出重影。
+         */
+        boolean[] curExcluded;
+        boolean[] prevExcluded;
     }
 
     // ── 状态更新（主线程，由方块实体客户端数据钩子驱动）──
@@ -179,30 +186,36 @@ public final class ChessboardAnimTracker {
 
     // ── 查询 ──
 
-    /** 方块实体渲染器用：该格是否应逐帧绘制（含宽限期，避免网格重建完成前出现空隙） */
-    public boolean isDynamic(BlockPos pos, int cell, long now) {
+    /**
+     * 方块实体渲染器用：该格是否由渲染器绘制 —— 取最近两代几何快照的并集（理由见
+     * {@link BoardAnim#curExcluded}）。
+     */
+    public boolean isDynamic(BlockPos pos, int cell) {
         BoardAnim a = boards.get(pos);
-        if (a == null || a.dynamicUntil == null || cell < 0 || cell >= a.dynamicUntil.length) return false;
-        long d = a.dynamicUntil[cell];
-        if (d == 0) return false;
-        if (d == Long.MAX_VALUE) return true;
-        return now < d + GRACE_MS;
+        if (a == null || cell < 0) return false;
+        return in(a.curExcluded, cell) || in(a.prevExcluded, cell);
+    }
+
+    private static boolean in(boolean[] arr, int cell) {
+        return arr != null && cell < arr.length && arr[cell];
     }
 
     /**
-     * 区块几何用：快照出「不应烘焙」的格子。
-     * 不含宽限期 —— 动画一结束就交还给几何，宽限期内由渲染器双方重叠绘制（位姿相同，肉眼无差别）。
+     * 区块几何用：快照出「不应烘焙」的格子，并把代数往前推一位
+     * （当前代 → 上一代，最新状态 → 当前代）。只有主线程调用。
      */
     public boolean[] exclusionSnapshot(BlockPos pos, int total) {
-        boolean[] out = new boolean[total];
         BoardAnim a = boards.get(pos);
-        if (a == null || a.dynamicUntil == null) return out;
-        long now = System.currentTimeMillis();
-        for (int i = 0; i < total && i < a.dynamicUntil.length; i++) {
-            long d = a.dynamicUntil[i];
-            out[i] = d == Long.MAX_VALUE || d > now;
+        if (a == null || a.dynamicUntil == null) return new boolean[total];
+        if (a.prevExcluded == null || a.prevExcluded.length != total) a.prevExcluded = new boolean[total];
+        if (a.curExcluded == null || a.curExcluded.length != total) a.curExcluded = new boolean[total];
+        boolean[] tmp = a.prevExcluded;
+        a.prevExcluded = a.curExcluded;
+        a.curExcluded = tmp;
+        for (int i = 0; i < total; i++) {
+            a.curExcluded[i] = a.dynamicUntil[i] != 0;
         }
-        return out;
+        return a.curExcluded.clone(); // 副本交给 worker 线程只读
     }
 
     BoardAnim get(BlockPos pos) { return boards.get(pos); }
@@ -220,8 +233,12 @@ public final class ChessboardAnimTracker {
     }
 
     /**
-     * 每客户端 tick（20Hz）驱动：动画全部结束后重建一次区块，把棋子烘回几何；
-     * 宽限期过后清除标记，恢复纯烘焙。必须在后台也生效，否则棋子会永久缺失。
+     * 每客户端 tick（20Hz）：只负责清理已消失棋盘的条目。
+     *
+     * <p><b>这里不做任何「动画到期后交还几何」的动作</b> —— 交还只发生在下一次数据变化时
+     * （{@link #update} → {@link #recompute} 重算）。这样「几何排除集」和「渲染器绘制集」
+     * 永远一起变化，不存在「几何还没烘回去、渲染器却已经停手」的空档。
+     * 之前靠计时器 / 重建代数握手来交还，都会因为重建请求被吞掉而让棋子消失。
      */
     public void tick() {
         if (boards.isEmpty()) return;
@@ -230,36 +247,12 @@ public final class ChessboardAnimTracker {
             boards.clear();
             return;
         }
-        long now = System.currentTimeMillis();
         Iterator<Map.Entry<BlockPos, BoardAnim>> it = boards.entrySet().iterator();
         while (it.hasNext()) {
             Map.Entry<BlockPos, BoardAnim> e = it.next();
             // 方块实体已消失（区块卸载/棋盘被拆）→ 清理
             if (!(level.getBlockEntity(e.getKey()) instanceof ChessboardBlockEntity)) {
                 it.remove();
-                continue;
-            }
-            BoardAnim a = e.getValue();
-            long[] d = a.dynamicUntil;
-            if (d == null) continue;
-
-            boolean anyActive = false;
-            long maxEnd = 0;
-            for (long v : d) {
-                if (v == 0) continue;
-                if (v == Long.MAX_VALUE || v > now) anyActive = true;
-                else maxEnd = Math.max(maxEnd, v);
-            }
-            if (!anyActive && maxEnd > 0 && !a.rebakePending) {
-                a.rebakePending = true;
-                a.rebakeAt = maxEnd;
-                markDirty(e.getKey());
-            }
-            if (a.rebakePending && now >= a.rebakeAt + GRACE_MS) {
-                a.rebakePending = false;
-                for (int i = 0; i < d.length; i++) {
-                    if (d[i] != 0 && d[i] != Long.MAX_VALUE) d[i] = 0;
-                }
             }
         }
     }
