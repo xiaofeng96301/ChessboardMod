@@ -102,6 +102,7 @@ public class ChessboardBlockEntity extends BlockEntity {
         ClickResult r = g.onClick(pieces, selRow, selCol, clickRow, clickCol);
         switch (r) {
             case ClickResult.Select(int rw, int cl) -> { selRow = rw; selCol = cl; }
+            case ClickResult.Deselect() -> { selRow = -1; selCol = -1; }
             case ClickResult.Move(int fr, int fc, int tr, int tc) -> {
                 history.push(new int[]{fr, fc, tr, tc, captured});
                 selRow = -1; selCol = -1;

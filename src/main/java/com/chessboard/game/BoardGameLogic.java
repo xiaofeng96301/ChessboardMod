@@ -141,6 +141,11 @@ public interface BoardGameLogic {
         if (selRow < 0) {
             return cp != 0 ? new ClickResult.Select(clickRow, clickCol) : new ClickResult.None();
         }
+        // 再次点击已抬起的那颗棋子 → 放下。必须放在「同色换选」之前判断，
+        // 否则和自己同色，会走换选分支重新选中自己，永远放不下。
+        if (clickRow == selRow && clickCol == selCol) {
+            return new ClickResult.Deselect();
+        }
         int sp = pieces[idx(selRow, selCol)];
         if (cp != 0) {
             if (side(cp) == side(sp))
@@ -156,12 +161,15 @@ public interface BoardGameLogic {
 
     // ── 结果类型 ──
 
-    sealed interface ClickResult permits ClickResult.None, ClickResult.Select, ClickResult.Move, ClickResult.Place, ClickResult.Flip {
+    sealed interface ClickResult permits ClickResult.None, ClickResult.Select, ClickResult.Deselect, ClickResult.Move, ClickResult.Place, ClickResult.Flip {
         /** 无效点击，没有任何变化 */
         record None() implements ClickResult {}
 
         /** 选中了 (row, col) 处的棋子 */
         record Select(int row, int col) implements ClickResult {}
+
+        /** 放下了已抬起的棋子（再次点击同一格）。位置由调用方自己的 selRow/selCol 可知，故不携带 */
+        record Deselect() implements ClickResult {}
 
         /** 棋子从 (fromRow, fromCol) 移动到 (toRow, toCol)，覆盖了 captured 棋子 */
         record Move(int fromRow, int fromCol, int toRow, int toCol) implements ClickResult {}
