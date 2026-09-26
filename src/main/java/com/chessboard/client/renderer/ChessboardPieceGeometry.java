@@ -39,7 +39,12 @@ import net.neoforged.neoforge.client.model.ao.EnhancedBlockModelLighter;
 import org.joml.Matrix4f;
 import org.joml.Quaternionfc;
 
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Method;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 棋子几何的共用工具 —— 方块实体渲染器与区块几何两条路径必须用同一份实现，
@@ -269,11 +274,120 @@ public final class ChessboardPieceGeometry {
             float lv = (UVPair.unpackV(packed) - ov0) / (ov1 - ov0);
             uv[i] = UVPair.pack(nu0 + lu * (nu1 - nu0), nv0 + lv * (nv1 - nv0));
         }
+        BakedQuad.MaterialInfo skinInfo = materialInfoWithSprite(mi, skin);
+        if (skinInfo == null) return q; // 反射没成功：少一层皮肤，好过崩游戏
         return new BakedQuad(q.position0(), q.position1(), q.position2(), q.position3(),
-                uv[0], uv[1], uv[2], uv[3], q.direction(),
-                new BakedQuad.MaterialInfo(skin, mi.layer(), mi.itemRenderType(), mi.tintIndex(),
-                        mi.shade(), mi.lightEmission(), mi.ambientOcclusion()),
-                q.bakedNormals(), q.bakedColors());
+                uv[0], uv[1], uv[2], uv[3], q.direction(), skinInfo);
+    }
+
+    // ── 跨版本的 MaterialInfo 重建（只能反射，见下） ──
+
+    /** 已解析的取值方法（按方法名缓存；懒加载，只在真上皮肤时用） */
+    private static final Map<String, Method> MI_GETTERS = new ConcurrentHashMap<>();
+    /** MaterialInfo 的构造：按参数个数分版本缓存 */
+    private static final Map<Integer, Constructor<?>> MI_CTORS = new ConcurrentHashMap<>();
+    private static final Set<Integer> MI_CTORS_BAD = ConcurrentHashMap.newKeySet();
+
+    /**
+     * 复制一个 {@code MaterialInfo}，只把贴图换成皮肤。
+     *
+     * <p><b>这里必须走反射</b>：两版的组件根本不是一套东西，直接构造没法同时兼容 ——
+     * <pre>
+     * 26.1.2: sprite, layer, itemRenderType, tintIndex, shade, lightEmission, ambientOcclusion
+     * 26.3  : sprite, layer, itemRenderType, itemGlintRenderType, itemGlintSpecialRenderType,
+     *         tintIndex, shadeDirectionOverride, lightEmission
+     * </pre>
+     * 而且 {@code ambientOcclusion()} / {@code shade()} 这两个取值方法 26.3 已经删了
+     * （折进新的组件设计），所以取值也得按名字反射找 —— 编译期写死任何一个版本的方法名，
+     * 另一个版本就是运行期 {@code NoSuchMethodError}（2026-09-26 的崩溃就是 {@code shade()}）。
+     *
+     * <p>按「构造参数个数」分支：7 = 26.1.2，8 = 26.3。取不到的组件用默认值
+     * （shade / AO 取 true，lightEmission 取 0，26.3 的 glint 相关取 null —— 我们的方块
+     * 不发光、不附魔光效，这几个值不影响观感）。
+     *
+     * <p>任何一步失败都返回 {@code null}，由调用方退回原四边形：<b>宁可这层皮肤不生效，
+     * 也不能崩</b>。解析结果全部缓存，反射调用只在「设了皮肤」的区块重建里发生。
+     */
+    private static BakedQuad.MaterialInfo materialInfoWithSprite(BakedQuad.MaterialInfo mi, TextureAtlasSprite skin) {
+        Constructor<?> ctor = materialInfoCtor();
+        if (ctor == null) return null;
+        try {
+            Class<?>[] pt = ctor.getParameterTypes();
+            Object[] args;
+            if (pt.length == 7) {
+                args = new Object[]{skin, get(mi, "layer"), get(mi, "itemRenderType"),
+                        get(mi, "tintIndex"), getOr(mi, "shade", Boolean.TRUE),
+                        getOr(mi, "lightEmission", 0), getOr(mi, "ambientOcclusion", Boolean.TRUE)};
+            } else if (pt.length == 8) {
+                args = new Object[]{skin, get(mi, "layer"), get(mi, "itemRenderType"),
+                        get(mi, "itemGlintRenderType"), get(mi, "itemGlintSpecialRenderType"),
+                        get(mi, "tintIndex"), get(mi, "shadeDirectionOverride"),
+                        getOr(mi, "lightEmission", 0)};
+            } else {
+                return null;
+            }
+            return (BakedQuad.MaterialInfo) ctor.newInstance(args);
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            return null;
+        }
+    }
+
+    /** MaterialInfo 的构造：两版参数个数不同，按个数挑一个能用的 */
+    private static Constructor<?> materialInfoCtor() {
+        for (int n : new int[]{7, 8}) {
+            Constructor<?> c = MI_CTORS.get(n);
+            if (c != null) return c;
+            if (MI_CTORS_BAD.contains(n)) continue;
+            try {
+                Constructor<?> found = findCtorByArity(BakedQuad.MaterialInfo.class, n);
+                if (found != null) {
+                    found.setAccessible(true);
+                    MI_CTORS.put(n, found);
+                    return found;
+                }
+                MI_CTORS_BAD.add(n);
+            } catch (RuntimeException e) {
+                MI_CTORS_BAD.add(n);
+            }
+        }
+        return null;
+    }
+
+    private static Constructor<?> findCtorByArity(Class<?> cls, int arity) {
+        for (Constructor<?> c : cls.getDeclaredConstructors()) {
+            if (c.getParameterCount() == arity) return c;
+        }
+        return null;
+    }
+
+    /** 反射取组件值；取不到抛异常（由调用方兜底成 null） */
+    private static Object get(Object mi, String name) throws ReflectiveOperationException {
+        Method m = MI_GETTERS.get(name);
+        if (m == null) {
+            m = mi.getClass().getMethod(name);
+            MI_GETTERS.put(name, m);
+        }
+        return m.invoke(mi);
+    }
+
+    /** 反射取组件值，取不到就用默认（该组件在当前版本不存在时属于正常情况） */
+    private static Object getOr(Object mi, String name, Object fallback) {
+        try {
+            return get(mi, name);
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            return fallback;
+        }
+    }
+
+    /**
+     * 这个四边形要不要走环境光遮蔽（平滑光照）—— 决定用光照器的哪个准备方法。
+     *
+     * <p>{@code ambientOcclusion()} 26.3 已删，所以同样只能反射取；取不到按 {@code true}，
+     * 因为方块模型默认就是 AO，我们自己的模型也是。
+     */
+    private static boolean ambientOcclusion(BakedQuad.MaterialInfo mi) {
+        Object v = getOr(mi, "ambientOcclusion", Boolean.TRUE);
+        return v instanceof Boolean b ? b : Boolean.TRUE;
     }
 
     /**
@@ -501,7 +615,7 @@ public final class ChessboardPieceGeometry {
                                 int lightCoords, QuadInstance qi, PoseStack.Pose pose,
                                 TextureAtlasSprite skin, int tint) {
         BakedQuad quad = skinQuad(q, skin);
-        if (quad.materialInfo().ambientOcclusion()) {
+        if (ambientOcclusion(quad.materialInfo())) {
             lighter.prepareQuadAmbientOcclusion(region, state, boardPos, quad, qi);
         } else {
             lighter.prepareQuadFlat(region, state, boardPos, lightCoords, quad, qi);

@@ -34,9 +34,22 @@ public class ChessboardClient {
     private static final KeyMapping.Category CATEGORY = KeyMapping.Category.register(
             Identifier.fromNamespaceAndPath(ChessboardMod.MODID, "chessboard"));
 
+    /**
+     * 「打开棋盘菜单」的按键。
+     *
+     * <p><b>默认键必须按名字在运行期查，不能写 {@code InputConstants.KEY_LSHIFT}。</b>
+     * 那是个编译期常量（带 ConstantValue），会被<b>内联</b>进我们的字节码：按 26.1.2 编出来的
+     * 是 340，而 26.3 把整个键码空间换掉了（左 Shift 340→225、B 66→5、Escape 256→41）。
+     * 字段名一样、编译不报错、加载也不报错，只是悄悄绑到一个 26.3 里不存在的键码上 ——
+     * 表现就是选项里显示成 {@code key.keyboard.340} 而且按了没反应。
+     *
+     * <p>{@code InputConstants.getKey(String)} 是运行期查表（两版签名一致），
+     * 每版各自解析出自己的键码，所以这样写是跨版本安全的。查不到时它返回 UNKNOWN，
+     * 也就是「没绑键」，不会崩。
+     */
     public static final KeyMapping OPEN_MENU = new KeyMapping(
             "key.chessboard.open_menu",
-            InputConstants.KEY_LSHIFT,
+            InputConstants.getKey("key.keyboard.left.shift").getValue(),
             CATEGORY);
 
     /**

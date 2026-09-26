@@ -13,7 +13,6 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
-import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
@@ -178,23 +177,31 @@ public class BoardSkinScreen extends AbstractContainerScreen<BoardSkinMenu> {
      * 画面板背景。
      *
      * <p>背景图是 276×166（行 0 黑外框、1-2 白高光、3-7 标题栏、8 分隔线、9..157 均匀内部、
-     * 158 起底边框），但我们要把热键栏也包进面板，所以整块要比原图高。
+     * 158 起底边框），但热键栏也要包进面板，所以整块比原图高。做法：原图原样贴满，
+     * 再把同一张图<b>往下平移</b>，只在底部那条带里露出「均匀内部 + 底边框」——
+     * 接缝落在纯色上，看不出来。
      *
-     * <p><b>接长不用「取子区域贴图」</b>（那个重载的参数含义容易记反，画出来会莫名其妙多一条
-     * 边框、看着像两个框），改成：原图原样贴一次，再用 {@code enableScissor} 裁出底部那条带，
-     * 把同一张图<b>整体往下平移</b>再贴一次。带里露出来的正好是「均匀内部 + 底边框」，
-     * 接缝落在纯色区域上，完全看不出来。
+     * <p><b>这里用不带 {@code RenderPipeline} 参数的那个 {@code blit} 重载，不是随手挑的。</b>
+     * 26.1.2 里 {@code RenderPipelines.GUI_TEXTURED} 的类型是
+     * {@code com.mojang.blaze3d.pipeline.RenderPipeline}，26.3 换成了
+     * {@code com.mojang.renderpearl.api.pipeline.RenderPipeline}：字段还在，但描述符变了，
+     * 而 JVM 是按「名字 + 描述符」找字段的，于是运行期 {@code NoSuchFieldError} 把界面打死
+     * （2026-09-26 那次崩溃）。不带 pipeline 的重载两版同签名、pipeline 由它在内部取，
+     * 所以我们的字节码里不会出现那个类型。
+     *
+     * <p>这个重载收的是<b>绝对角点</b>（x1/y1 是右下角）和<b>归一化的 u/v</b>，
+     * 所以「只贴某一段」直接算 UV 就行，不需要 scissor。
      */
     private void drawPanel(GuiGraphicsExtractor graphics) {
-        // 主体：原图原样（8 参重载，目标尺寸与纹理尺寸相同，没有歧义）
-        graphics.blit(RenderPipelines.GUI_TEXTURED, BACKGROUND, leftPos, topPos,
-                0, 0, PANEL_W, PANEL_H, PANEL_W, PANEL_H);
-        // 接长带：把同一张图往下平移 IMAGE_H-PANEL_H，只露出底边框所在的那一段
+        // 主体：整张贴图原样铺满（276×166 贴到同样大小，1:1）
+        graphics.blit(BACKGROUND, leftPos, topPos, leftPos + PANEL_W, topPos + PANEL_H,
+                0f, 1f, 0f, 1f);
+        // 接长带：相当于把贴图下移 shift 行后，只取「原图 PANEL_BOTTOM-shift 行往下」那一段。
+        // 那段 = 均匀内部(到 157 行) + 底边框(158 行起)，高度正好和带一样，1:1 不缩放。
         int shift = IMAGE_H - PANEL_H;
-        graphics.enableScissor(leftPos, topPos + PANEL_BOTTOM, leftPos + PANEL_W, topPos + IMAGE_H);
-        graphics.blit(RenderPipelines.GUI_TEXTURED, BACKGROUND, leftPos, topPos + shift,
-                0, 0, PANEL_W, PANEL_H, PANEL_W, PANEL_H);
-        graphics.disableScissor();
+        float v0 = (PANEL_BOTTOM - shift) / (float) PANEL_H;
+        graphics.blit(BACKGROUND, leftPos, topPos + PANEL_BOTTOM,
+                leftPos + PANEL_W, topPos + IMAGE_H, 0f, 1f, v0, 1f);
     }
 
     /** 凹槽底：暗框 + 亮内衬，和原版槽位的观感接近 */
