@@ -4,12 +4,13 @@ import com.chessboard.block.ChessboardBlock;
 import com.chessboard.blockentity.ChessboardBlockEntity;
 import com.chessboard.client.renderer.ChessboardRenderer;
 import com.chessboard.client.renderer.ChessboardSectionGeometry;
-import com.chessboard.client.screen.ChessboardScreen;
+import com.chessboard.client.screen.BoardSkinScreen;
+import com.chessboard.network.OpenBoardScreenPayload;
 import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderers;
+import net.minecraft.core.BlockPos;
 import net.minecraft.resources.Identifier;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -18,11 +19,10 @@ import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
+import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.client.gui.ConfigurationScreen;
 import net.neoforged.neoforge.client.gui.IConfigScreenFactory;
-
-import java.lang.reflect.Method;
 
 import static com.chessboard.ChessboardMod.CHESSBOARD_BE;
 
@@ -39,27 +39,16 @@ public class ChessboardClient {
             InputConstants.KEY_LSHIFT,
             CATEGORY);
 
-    /** 26.1 的 setScreen；26.2 改名 setScreenAndShow，用反射兼容两个版本 */
-    private static final Method SET_SCREEN = findSetScreen("setScreen");
-    private static final Method SET_SCREEN_AND_SHOW = findSetScreen("setScreenAndShow");
-
-    private static Method findSetScreen(String name) {
-        try {
-            return Minecraft.class.getMethod(name, Screen.class);
-        } catch (NoSuchMethodException e) {
-            return null;
-        }
-    }
-
-    /** 打开界面，自动适配 26.1 / 26.2 的方法名 */
-    static void openScreen(Screen screen) {
-        Method m = SET_SCREEN != null ? SET_SCREEN : SET_SCREEN_AND_SHOW;
-        if (m == null) return;
-        try {
-            m.invoke(Minecraft.getInstance(), screen);
-        } catch (ReflectiveOperationException e) {
-            throw new RuntimeException("Failed to open screen", e);
-        }
+    /**
+     * 请求服务端打开皮肤界面。
+     *
+     * <p>容器菜单是服务端权威的，客户端不能自己 {@code setScreen} —— 只能发请求，由服务端校验后
+     * 把界面推回来（见 {@code ChessboardMod.openBoardScreen}）。以前那套「反射调 setScreen /
+     * setScreenAndShow 兼容两个版本」的写法因此整个删掉了。
+     */
+    public static void requestBoardScreen(BlockPos pos) {
+        var connection = Minecraft.getInstance().getConnection();
+        if (connection != null) connection.send(new OpenBoardScreenPayload(pos));
     }
 
     public ChessboardClient(ModContainer container) {
@@ -69,7 +58,6 @@ public class ChessboardClient {
     @SubscribeEvent
     static void onClientSetup(final FMLClientSetupEvent event) {
         BlockEntityRenderers.register(CHESSBOARD_BE.get(), ChessboardRenderer::new);
-        ChessboardBlock.openScreenAction = pos -> openScreen(new ChessboardScreen(pos));
         // 静止棋子烘焙进区块几何：数据变化时更新动画状态并重建所在区块
         ChessboardBlockEntity.clientDataHook = ChessboardSectionGeometry::onBoardDataChanged;
         NeoForge.EVENT_BUS.register(ChessboardSectionGeometry.class);
@@ -78,5 +66,10 @@ public class ChessboardClient {
     @SubscribeEvent
     static void registerKeys(final RegisterKeyMappingsEvent event) {
         event.register(OPEN_MENU);
+    }
+
+    @SubscribeEvent
+    static void registerScreens(final RegisterMenuScreensEvent event) {
+        event.register(ChessboardMod.BOARD_SKIN_MENU.get(), BoardSkinScreen::new);
     }
 }

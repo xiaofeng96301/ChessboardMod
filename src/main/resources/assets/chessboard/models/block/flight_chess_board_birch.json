@@ -1,7 +1,0 @@
-{
-  "parent": "chessboard:block/board",
-  "textures": {
-    "0": "chessboard:block/flight_chess_board",
-    "2": "minecraft:block/stripped_birch_log"
-  }
-}

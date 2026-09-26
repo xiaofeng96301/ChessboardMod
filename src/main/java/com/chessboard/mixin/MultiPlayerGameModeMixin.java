@@ -31,7 +31,8 @@ public class MultiPlayerGameModeMixin {
         // 未按住菜单键时，只有点击侧面才开菜单，上下面继续落子
         if (!menuKey && blockHit.getDirection() == Direction.UP) return;
         if (!menuKey && blockHit.getDirection() == Direction.DOWN) return;
-        ChessboardBlock.openScreenAction.accept(blockHit.getBlockPos());
+        // 菜单是服务端权威的，这里只能发请求（服务端校验后会自己把界面推回来）
+        ChessboardClient.requestBoardScreen(blockHit.getBlockPos());
         cir.setReturnValue(InteractionResult.FAIL);
     }
 }

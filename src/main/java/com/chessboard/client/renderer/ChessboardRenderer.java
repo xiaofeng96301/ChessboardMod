@@ -1,7 +1,7 @@
 package com.chessboard.client.renderer;
 
 import com.chessboard.Config;
-import com.chessboard.MaterialData;
+import com.chessboard.SkinData;
 import com.chessboard.block.ChessboardBlock;
 import com.chessboard.blockentity.ChessboardBlockEntity;
 import com.chessboard.game.BoardGameLogic;
@@ -24,12 +24,15 @@ import net.minecraft.client.renderer.feature.ModelFeatureRenderer;
 import net.minecraft.client.renderer.rendertype.RenderType;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.client.renderer.state.level.CameraRenderState;
+import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.core.Direction;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.client.model.ao.EnhancedBlockModelLighter;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 棋盘棋子渲染器 —— 只负责<b>动画中</b>的棋子。
@@ -54,6 +57,8 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
     private final List<BlockStateModelPart> parts = new ObjectArrayList<>();
     /** 资源重载会重建渲染器实例，所以这里的引用不会过期 */
     private BlockStateModelSet models;
+    /** 方块 ID → 皮肤贴图（null 也缓存）。同上，实例重建即缓存作废 */
+    private final Map<String, TextureAtlasSprite> skinCache = new HashMap<>();
 
     public ChessboardRenderer(BlockEntityRendererProvider.Context ctx) {}
 
@@ -71,6 +76,27 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
             }
         }
         return models;
+    }
+
+    /**
+     * 方块 ID → 皮肤贴图。
+     *
+     * <p>按 ID 缓存是必需的：渲染器每帧要为每颗棋子取一次贴图，五子棋满盘 225 颗，
+     * 每次现场查注册表 + 解析 Identifier 太贵。渲染器实例在资源重载时会重建，
+     * 所以缓存的贴图不会变成过期对象。解析不出来也缓存（null），避免反复查未知 ID。
+     */
+    private TextureAtlasSprite skinSprite(String id) {
+        if (id == null) return null;
+        if (skinCache.containsKey(id)) return skinCache.get(id);
+        TextureAtlasSprite sprite = ChessboardPieceGeometry.skinSprite(SkinData.stateOf(id), models());
+        skinCache.put(id, sprite);
+        return sprite;
+    }
+
+    /** 该棋子吃哪个槽位的皮肤（没设 / 不吃皮肤 → null） */
+    private static TextureAtlasSprite skinFor(ChessboardRenderState s, int piece) {
+        int slot = SkinData.slotFor(s.logic, piece);
+        return slot >= 0 && s.skinSprites != null ? s.skinSprites[slot] : null;
     }
 
     @Override
@@ -103,9 +129,13 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
         s.cols = g.cols();
         s.facing = entity.getBlockState().getValue(ChessboardBlock.FACING);
         s.logic = g;
-        if (s.materials == null || s.materials.length != MaterialData.SLOT_COUNT)
-            s.materials = new String[MaterialData.SLOT_COUNT];
-        System.arraycopy(entity.materials(), 0, s.materials, 0, MaterialData.SLOT_COUNT);
+        if (s.skins == null || s.skins.length != SkinData.SLOT_COUNT)
+            s.skins = new String[SkinData.SLOT_COUNT];
+        System.arraycopy(entity.skins(), 0, s.skins, 0, SkinData.SLOT_COUNT);
+        // 各槽位的皮肤贴图（null = 没设）。每帧解析一次；按方块 ID 缓存，避免逐棋子重查
+        if (s.skinSprites == null || s.skinSprites.length != SkinData.SLOT_COUNT)
+            s.skinSprites = new TextureAtlasSprite[SkinData.SLOT_COUNT];
+        for (int i = 0; i < s.skins.length; i++) s.skinSprites[i] = skinSprite(s.skins[i]);
 
         long now = System.currentTimeMillis();
         ChessboardAnimTracker.INSTANCE.ensureBaseline(entity); // 兜底：数据钩子漏掉时也能建立状态
@@ -227,12 +257,14 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
         }
         float y = lift + hop;
 
-        submitModel(ps, cc, s, region, ChessboardPieceGeometry.stateFor(s.logic, piece, s.materials),
-                wx, wz, y, piece, flipDeg, winTilt, spinDeg, false);
+        TextureAtlasSprite skin = skinFor(s, piece);
+        submitModel(ps, cc, s, region, ChessboardPieceGeometry.stateFor(s.logic, piece),
+                wx, wz, y, piece, flipDeg, winTilt, spinDeg, false, skin);
 
         BlockState charState = ChessboardPieceGeometry.charStateFor(s.logic, piece);
         if (charState != null) {
-            submitModel(ps, cc, s, region, charState, wx, wz, y, piece, flipDeg, winTilt, spinDeg, true);
+            // 汉字是本模组自己的贴图，皮肤不会覆盖它（skinQuad 会原样放过）
+            submitModel(ps, cc, s, region, charState, wx, wz, y, piece, flipDeg, winTilt, spinDeg, true, skin);
         }
     }
 
@@ -244,7 +276,8 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
     private void submitModel(PoseStack ps, SubmitNodeCollector cc, ChessboardRenderState s,
                              BlockAndTintGetter region, BlockState state,
                              float wx, float wz, float lift,
-                             int piece, float flipDeg, float winTilt, float spinDeg, boolean textRotation) {
+                             int piece, float flipDeg, float winTilt, float spinDeg, boolean textRotation,
+                             TextureAtlasSprite skin) {
         float y = s.logic.pieceHeight() + lift;
         float cx = s.logic.pieceCenterX() / 16f, cz = s.logic.pieceCenterZ() / 16f;
         float sc = s.logic.pieceScale();
@@ -281,7 +314,7 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
         RenderType sheet = RenderTypes.cutoutMovingBlock();
         cc.submitCustomGeometry(ps, sheet, (pose, vc) ->
                 ChessboardPieceGeometry.emitQuads(vc, pose, region, s.blockPos, state,
-                        lighter(), set, parts, quadInstance));
+                        lighter(), set, parts, quadInstance, skin));
         ps.popPose();
     }
 
@@ -292,7 +325,8 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
         public int selRow = -1, selCol = -1, rows, cols;
         public Direction facing = Direction.SOUTH;
         public BoardGameLogic logic;
-        public String[] materials;
+        /** 各槽位皮肤（方块 ID，null = 未设） */
+        public String[] skins;
         public float lift, unlift, moveT = 1f;
         public int unselRow = -1, unselCol = -1;
         public int fromRow = -1, fromCol = -1, toRow = -1, toCol = -1;
@@ -302,6 +336,8 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
         public float winT = 1f;
         /** 飞行棋骰子翻滚进度 0..1（1 = 静止） */
         public float diceRollT = 1f;
+        /** 各槽位解析好的皮肤贴图（null = 没设皮肤，用模型自带贴图） */
+        public TextureAtlasSprite[] skinSprites;
         /** 超出渲染距离，本帧不画（见 Config#BOARD_RENDER_DISTANCE） */
         public boolean tooFar;
     }

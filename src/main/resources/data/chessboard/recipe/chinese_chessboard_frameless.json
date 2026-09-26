@@ -22,6 +22,14 @@
     "minecraft:polished_blackstone"
   ],
   "result": {
-    "id": "chessboard:chinese_chessboard"
+    "id": "chessboard:chinese_chessboard",
+    "components": {
+      "minecraft:block_state": {
+        "frameless": "true"
+      },
+      "minecraft:custom_name": {
+        "translate": "item.chessboard.variant.chinese_chessboard_frameless"
+      }
+    }
   }
 }

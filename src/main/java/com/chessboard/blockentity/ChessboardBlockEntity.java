@@ -1,6 +1,6 @@
 package com.chessboard.blockentity;
 
-import com.chessboard.MaterialData;
+import com.chessboard.SkinData;
 import com.chessboard.block.ChessboardBlock;
 import com.chessboard.game.BoardGameLogic;
 import com.chessboard.game.BoardGameLogic.ClickResult;
@@ -44,8 +44,7 @@ public class ChessboardBlockEntity extends BlockEntity {
     public static BlockEntityType<ChessboardBlockEntity> TYPE;
 
     /**
-     * 客户端数据变化钩子（客户端注入，避免通用类引用客户端类；参考
-     * {@code ChessboardBlock#openScreenAction} 的注入模式）。
+     * 客户端数据变化钩子（客户端注入，避免通用类引用客户端类）。
      * 用于更新动画状态并触发所在区块的几何重建。
      */
     public static Consumer<ChessboardBlockEntity> clientDataHook = be -> {};
@@ -54,8 +53,11 @@ public class ChessboardBlockEntity extends BlockEntity {
     private int[] pieces;
     private int selRow = -1, selCol = -1;
     private final Deque<int[]> history = new ArrayDeque<>();
-    /** 棋子材质配置（6 槽位，null = 默认），保存在棋盘实体上 */
-    private String[] materials = new String[MaterialData.SLOT_COUNT];
+    /**
+     * 各槽位的皮肤（方块 ID，null = 未设 = 用模型自带贴图）。
+     * 槽位含义见 {@link SkinData}：0 棋盘、1..6 各棋类阵营、7..10 飞行棋四队。
+     */
+    private final String[] skins = new String[SkinData.SLOT_COUNT];
 
     public ChessboardBlockEntity(BlockPos pos, BlockState state) {
         super(TYPE, pos, state);
@@ -85,14 +87,24 @@ public class ChessboardBlockEntity extends BlockEntity {
     public int selRow() { return selRow; }
     public int selCol() { return selCol; }
 
-    public String material(int slot) { return materials[slot]; }
-    public String[] materials() { return materials; }
+    /** 某槽位的皮肤（null = 未设） */
+    public String skin(int slot) { return skins[slot]; }
+    public String[] skins() { return skins; }
 
-    /** 设置材质并同步 */
-    public void setMaterial(int slot, String material) {
-        materials[slot] = material;
+    /**
+     * 整体设置皮肤并同步（皮肤界面里槽位一变就调到这里，最迟下一 tick 生效）。
+     *
+     * <p>写进 NBT 前先过一遍 {@link SkinData#stateOf} 校验：客户端发上来的方块 ID 不可信，
+     * 未知 ID / 空气 / 带方块实体的方块一律当成「未设」。
+     */
+    public void setSkins(List<String> incoming) {
+        for (int i = 0; i < skins.length; i++) {
+            String id = incoming != null && i < incoming.size() ? incoming.get(i) : null;
+            skins[i] = SkinData.stateOf(id) != null ? id : null;
+        }
         notifyChange();
     }
+
     // ── 点击 ──
 
     public void handleClick(int clickRow, int clickCol) {
@@ -223,16 +235,35 @@ public class ChessboardBlockEntity extends BlockEntity {
 
     // ── 持久化 ──
 
-    /** 序列化非空材质槽位（key: "matN"） */
-    private void writeMaterials(BiConsumer<String, String> sink) {
-        for (int i = 0; i < materials.length; i++) {
-            if (materials[i] != null) sink.accept("mat" + i, materials[i]);
+    /** 序列化非空皮肤槽位（key: "skinN"） */
+    private void writeSkin(BiConsumer<String, String> sink) {
+        for (int i = 0; i < skins.length; i++) {
+            if (skins[i] != null) sink.accept("skin" + i, skins[i]);
         }
     }
 
-    /** 读取材质槽位（缺失 = null） */
-    private void readMaterials(Function<String, String> getter) {
-        for (int i = 0; i < materials.length; i++) materials[i] = getter.apply("mat" + i);
+    /**
+     * 读取皮肤槽位（缺失 = 未设）。
+     *
+     * <p>顺带做一次**老数据迁移**：新系统上线前存的是 {@code mat<i>}（棋子材质的枚举名，
+     * 槽位 0..5），把它映射成方块 ID 填到新槽位 {@code i+1}（新表把「棋盘」插在了最前面）。
+     * 只读不写回，老键从此变成惰性数据。
+     */
+    private void readSkin(Function<String, String> getter) {
+        for (int i = 0; i < skins.length; i++) skins[i] = SkinData.blankToNull(getter.apply("skin" + i));
+        for (int i = 0; i + 1 < skins.length; i++) {
+            if (skins[i + 1] != null) continue;
+            String legacy = SkinData.legacyMaterialSkin(getter.apply("mat" + i));
+            if (legacy != null) skins[i + 1] = legacy;
+        }
+    }
+
+    /** 是否设过皮肤（决定棋盘掉落物要不要带皮肤数据） */
+    private boolean hasSkin() {
+        for (String s : skins) {
+            if (s != null) return true;
+        }
+        return false;
     }
 
     /** 读取棋子数组（长度不符则忽略，保持现有棋盘） */
@@ -248,7 +279,7 @@ public class ChessboardBlockEntity extends BlockEntity {
         out.putIntArray("pieces", pieces);
         out.putInt("selRow", selRow);
         out.putInt("selCol", selCol);
-        writeMaterials(out::putString);
+        writeSkin(out::putString);
         int size = history.size();
         out.putInt("histSize", size);
         if (size > 0) out.putIntArray("history", flattenHistory());
@@ -263,7 +294,7 @@ public class ChessboardBlockEntity extends BlockEntity {
         else gameLogic().initBoard(pieces);
         selRow = in.getIntOr("selRow", -1);
         selCol = in.getIntOr("selCol", -1);
-        readMaterials(key -> in.getString(key).orElse(null));
+        readSkin(key -> in.getString(key).orElse(null));
         int histSize = in.getIntOr("histSize", 0);
         if (histSize > 0) restoreHistory(in.getIntArray("history").orElse(null));
         if (level != null && level.isClientSide()) clientDataHook.accept(this);
@@ -276,7 +307,7 @@ public class ChessboardBlockEntity extends BlockEntity {
         tag.putIntArray("pieces", pieces);
         tag.putInt("selRow", selRow);
         tag.putInt("selCol", selCol);
-        writeMaterials(tag::putString);
+        writeSkin(tag::putString);
         return tag;
     }
 
@@ -287,7 +318,7 @@ public class ChessboardBlockEntity extends BlockEntity {
         loadPieces(in.getIntArray("pieces").orElse(null));
         selRow = in.getIntOr("selRow", -1);
         selCol = in.getIntOr("selCol", -1);
-        readMaterials(key -> in.getString(key).orElse(null));
+        readSkin(key -> in.getString(key).orElse(null));
         // 数据变化 → 更新动画状态并重建所在区块几何
         if (level != null && level.isClientSide()) clientDataHook.accept(this);
     }
@@ -309,14 +340,15 @@ public class ChessboardBlockEntity extends BlockEntity {
         gameLogic();
         int[] init = new int[pieces.length];
         gameLogic().initBoard(init);
-        boolean hasProgress = !Arrays.equals(pieces, init) || !history.isEmpty();
+        // 皮肤也算「数据」：只设了皮肤、还没落子的棋盘，挖掉后也得带着皮肤
+        boolean hasProgress = hasSkin() || !Arrays.equals(pieces, init) || !history.isEmpty();
         if (!hasProgress) return;
 
         CompoundTag tag = new CompoundTag();
         tag.putIntArray("pieces", pieces);
         tag.putInt("selRow", selRow);
         tag.putInt("selCol", selCol);
-        writeMaterials(tag::putString);
+        writeSkin(tag::putString);
         tag.putInt("histSize", history.size());
         int[] flat = flattenHistory();
         if (flat != null) tag.putIntArray("history", flat);
@@ -331,7 +363,7 @@ public class ChessboardBlockEntity extends BlockEntity {
         if (tag.contains("pieces")) loadPieces(tag.getIntArray("pieces").orElse(null));
         selRow = tag.getInt("selRow").orElse(-1);
         selCol = tag.getInt("selCol").orElse(-1);
-        readMaterials(key -> tag.getString(key).orElse(null));
+        readSkin(key -> tag.getString(key).orElse(null));
         int histSize = tag.getInt("histSize").orElse(0);
         if (histSize > 0 && tag.contains("history")) restoreHistory(tag.getIntArray("history").orElse(null));
     }

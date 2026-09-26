@@ -1,8 +1,7 @@
 package com.chessboard;
 
+import com.chessboard.SkinData;
 import com.chessboard.block.ChessCharBlock;
-import com.chessboard.block.ChessMaterial;
-import com.chessboard.block.ChessPieceBlock;
 import com.chessboard.block.ChessboardBlock;
 import com.chessboard.block.FlightDiceBlock;
 import com.chessboard.block.FlightPieceBlock;
@@ -13,8 +12,10 @@ import com.chessboard.game.ChineseChessLogic;
 import com.chessboard.game.FlightChessLogic;
 import com.chessboard.game.GomokuLogic;
 import com.chessboard.game.TicTacToeLogic;
-import com.chessboard.network.SetMaterialPayload;
+import com.chessboard.menu.BoardSkinMenu;
+import com.chessboard.network.OpenBoardScreenPayload;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
+import com.mojang.logging.LogUtils;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.ArgumentBuilder;
 import net.minecraft.commands.CommandSourceStack;
@@ -25,30 +26,34 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.CreativeModeTab;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.BlockItemStateProperties;
 import net.minecraft.world.level.ItemLike;
-import net.minecraft.world.item.component.CustomModelData;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.entity.BlockEntityType;
-import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.MapColor;
+import net.minecraft.world.phys.Vec3;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.config.ModConfig;
 import net.neoforged.neoforge.common.NeoForge;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.SimpleMenuProvider;
+import net.neoforged.neoforge.common.extensions.IMenuTypeExtension;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 import net.neoforged.neoforge.registries.DeferredBlock;
 import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredItem;
 import net.neoforged.neoforge.registries.DeferredRegister;
+import org.slf4j.Logger;
 
-import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -59,10 +64,21 @@ public class ChessboardMod {
 
     public static final String MODID = "chessboard";
 
+    /** 模块日志。渲染路径上的「皮肤没生效」这类问题只能靠它定位，别再静默吞异常 */
+    public static final Logger LOGGER = LogUtils.getLogger();
+
     public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBlocks(MODID);
     public static final DeferredRegister.Items ITEMS = DeferredRegister.createItems(MODID);
     public static final DeferredRegister<CreativeModeTab> TABS = DeferredRegister.create(Registries.CREATIVE_MODE_TAB, MODID);
     public static final DeferredRegister<BlockEntityType<?>> BLOCK_ENTITIES = DeferredRegister.create(Registries.BLOCK_ENTITY_TYPE, MODID);
+    public static final DeferredRegister<MenuType<?>> MENUS = DeferredRegister.create(Registries.MENU, MODID);
+
+    /**
+     * 棋盘皮肤界面。用 NeoForge 的 {@code IMenuTypeExtension} 是为了能带额外数据 ——
+     * 服务端把棋盘坐标和槽位布局塞进去，客户端照着重建成一样的槽位列表。
+     */
+    public static final DeferredHolder<MenuType<?>, MenuType<BoardSkinMenu>> BOARD_SKIN_MENU =
+            MENUS.register("board_skin", () -> IMenuTypeExtension.create(BoardSkinMenu::new));
 
     // ── 注册模板 ──
 
@@ -73,9 +89,9 @@ public class ChessboardMod {
                 p -> p.mapColor(MapColor.WOOD).strength(2f, 3f).sound(SoundType.WOOD).noOcclusion());
     }
 
-    /** 棋子模型方块：纯渲染用，无碰撞遮挡 */
-    private static DeferredBlock<ChessPieceBlock> registerPiece(String name) {
-        return BLOCKS.registerBlock(name, ChessPieceBlock::new, p -> p.mapColor(MapColor.WOOD).noOcclusion());
+    /** 棋子模型方块：纯渲染用，无碰撞遮挡。外观由动态皮肤决定，所以就是个普通 Block */
+    private static DeferredBlock<Block> registerPiece(String name) {
+        return BLOCKS.registerBlock(name, Block::new, p -> p.mapColor(MapColor.WOOD).noOcclusion());
     }
 
     // ── 棋盘注册 ──
@@ -107,27 +123,27 @@ public class ChessboardMod {
             "flight_dice", FlightDiceBlock::new, p -> p.mapColor(MapColor.WOOD).noOcclusion());
 
     // 棋子模型方块（带材质属性）
-    public static final DeferredBlock<ChessPieceBlock> CHESS_PIECE_MODEL = registerPiece("chess_piece");
-    public static final DeferredBlock<ChessPieceBlock> CHINESE_PIECE_HIDDEN = registerPiece("chinese_piece_hidden");
-    public static final DeferredBlock<ChessPieceBlock> GOMOKU_PIECE_BLACK = registerPiece("gomoku_piece_black");
-    public static final DeferredBlock<ChessPieceBlock> GOMOKU_PIECE_WHITE = registerPiece("gomoku_piece_white");
-    public static final DeferredBlock<ChessPieceBlock> GOMOKU_PIECE_GRAY = registerPiece("gomoku_piece_gray");
-    public static final DeferredBlock<ChessPieceBlock> TICTACTOE_PIECE_MODEL = registerPiece("tictactoe_piece");
+    public static final DeferredBlock<Block> CHESS_PIECE_MODEL = registerPiece("chess_piece");
+    public static final DeferredBlock<Block> CHINESE_PIECE_HIDDEN = registerPiece("chinese_piece_hidden");
+    public static final DeferredBlock<Block> GOMOKU_PIECE_BLACK = registerPiece("gomoku_piece_black");
+    public static final DeferredBlock<Block> GOMOKU_PIECE_WHITE = registerPiece("gomoku_piece_white");
+    public static final DeferredBlock<Block> GOMOKU_PIECE_GRAY = registerPiece("gomoku_piece_gray");
+    public static final DeferredBlock<Block> TICTACTOE_PIECE_MODEL = registerPiece("tictactoe_piece");
 
     // 国际象棋棋子模型方块
-    public static final DeferredBlock<ChessPieceBlock> CHESS_PIECE_KING = registerPiece("chess_piece_king");
-    public static final DeferredBlock<ChessPieceBlock> CHESS_PIECE_QUEEN = registerPiece("chess_piece_queen");
-    public static final DeferredBlock<ChessPieceBlock> CHESS_PIECE_BISHOP = registerPiece("chess_piece_bishop");
-    public static final DeferredBlock<ChessPieceBlock> CHESS_PIECE_KNIGHT = registerPiece("chess_piece_knight");
-    public static final DeferredBlock<ChessPieceBlock> CHESS_PIECE_ROOK = registerPiece("chess_piece_rook");
-    public static final DeferredBlock<ChessPieceBlock> CHESS_PIECE_PAWN = registerPiece("chess_piece_pawn");
+    public static final DeferredBlock<Block> CHESS_PIECE_KING = registerPiece("chess_piece_king");
+    public static final DeferredBlock<Block> CHESS_PIECE_QUEEN = registerPiece("chess_piece_queen");
+    public static final DeferredBlock<Block> CHESS_PIECE_BISHOP = registerPiece("chess_piece_bishop");
+    public static final DeferredBlock<Block> CHESS_PIECE_KNIGHT = registerPiece("chess_piece_knight");
+    public static final DeferredBlock<Block> CHESS_PIECE_ROOK = registerPiece("chess_piece_rook");
+    public static final DeferredBlock<Block> CHESS_PIECE_PAWN = registerPiece("chess_piece_pawn");
 
-    public static final DeferredBlock<ChessPieceBlock> CHESS_PIECE_KING_WHITE = registerPiece("chess_piece_king_white");
-    public static final DeferredBlock<ChessPieceBlock> CHESS_PIECE_QUEEN_WHITE = registerPiece("chess_piece_queen_white");
-    public static final DeferredBlock<ChessPieceBlock> CHESS_PIECE_BISHOP_WHITE = registerPiece("chess_piece_bishop_white");
-    public static final DeferredBlock<ChessPieceBlock> CHESS_PIECE_KNIGHT_WHITE = registerPiece("chess_piece_knight_white");
-    public static final DeferredBlock<ChessPieceBlock> CHESS_PIECE_ROOK_WHITE = registerPiece("chess_piece_rook_white");
-    public static final DeferredBlock<ChessPieceBlock> CHESS_PIECE_PAWN_WHITE = registerPiece("chess_piece_pawn_white");
+    public static final DeferredBlock<Block> CHESS_PIECE_KING_WHITE = registerPiece("chess_piece_king_white");
+    public static final DeferredBlock<Block> CHESS_PIECE_QUEEN_WHITE = registerPiece("chess_piece_queen_white");
+    public static final DeferredBlock<Block> CHESS_PIECE_BISHOP_WHITE = registerPiece("chess_piece_bishop_white");
+    public static final DeferredBlock<Block> CHESS_PIECE_KNIGHT_WHITE = registerPiece("chess_piece_knight_white");
+    public static final DeferredBlock<Block> CHESS_PIECE_ROOK_WHITE = registerPiece("chess_piece_rook_white");
+    public static final DeferredBlock<Block> CHESS_PIECE_PAWN_WHITE = registerPiece("chess_piece_pawn_white");
 
     // 方块实体（所有棋盘共用一种类型）
     public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<ChessboardBlockEntity>> CHESSBOARD_BE =
@@ -146,48 +162,31 @@ public class ChessboardMod {
     static final DeferredItem<BlockItem> CHESS_BOARD_ITEM = ITEMS.registerSimpleBlockItem(CHESS_BOARD);
     static final DeferredItem<BlockItem> FLIGHT_CHESS_BOARD_ITEM = ITEMS.registerSimpleBlockItem(FLIGHT_CHESS_BOARD);
 
-    /** 变体索引：wood*2 + frameless，供物品模型 custom_model_data 切换 */
-    public static int variantIndex(ChessMaterial wood, boolean frameless) {
-        return wood.ordinal() * 2 + (frameless ? 1 : 0);
-    }
-
-    /** 变体物品翻译 key（custom_name 用） */
-    public static String variantLangKey(String idPath, ChessMaterial wood, boolean frameless) {
-        return "item.chessboard.variant." + idPath
-                + "_" + wood.getSerializedName() + (frameless ? "_frameless" : "");
-    }
-
-    /** 构造棋盘变体物品（block_state + custom_model_data + custom_name 组件），放置/掉落/创造标签页共用 */
-    public static ItemStack variantStack(ItemLike item, ChessMaterial wood, boolean frameless) {
+    /**
+     * 构造棋盘物品（放置/掉落/创造标签页共用）。
+     *
+     * <p>外观不再靠方块状态的木种变体，而是靠方块实体上的动态皮肤（见 {@link SkinData}）。
+     * 物品模型是 {@code minecraft:select} + {@code block_state_property: "frameless"}，
+     * 所以这里只需要把 {@code FRAMELESS} 写进 {@code BLOCK_STATE} 组件就够了，
+     * <b>不需要</b>再写 {@code CUSTOM_MODEL_DATA}。
+     */
+    public static ItemStack boardStack(ItemLike item, boolean frameless) {
         Item itemObj = item.asItem();
-        BlockItemStateProperties props = BlockItemStateProperties.EMPTY
-                .with(ChessboardBlock.WOOD, wood)
-                .with(ChessboardBlock.FRAMELESS, frameless);
-        CustomModelData cmd = new CustomModelData(
-                List.of((float) variantIndex(wood, frameless)), List.of(), List.of(), List.of());
         ItemStack stack = new ItemStack(itemObj);
-        stack.set(DataComponents.BLOCK_STATE, props);
-        stack.set(DataComponents.CUSTOM_MODEL_DATA, cmd);
-        stack.set(DataComponents.CUSTOM_NAME, Component.translatable(
-                variantLangKey(itemObj.builtInRegistryHolder().key().identifier().getPath(), wood, frameless)));
+        stack.set(DataComponents.BLOCK_STATE,
+                BlockItemStateProperties.EMPTY.with(ChessboardBlock.FRAMELESS, frameless));
+        if (frameless) {
+            stack.set(DataComponents.CUSTOM_NAME, Component.translatable(
+                    "item.chessboard.variant."
+                            + itemObj.builtInRegistryHolder().key().identifier().getPath() + "_frameless"));
+        }
         return stack;
     }
 
-    /** 生成棋盘变体物品（创造标签页用） */
-    private static ItemStack boardVariant(DeferredItem<BlockItem> item, ChessMaterial wood, boolean frameless) {
-        return variantStack(item.get(), wood, frameless);
-    }
-
-    /** 向标签页输出基础物品（橡木带框）+ 其余变体（跳橡木带框，避免重复） */
+    /** 向标签页输出该棋盘的两个物品：带框 + 无框 */
     private static void addBoardVariants(CreativeModeTab.Output output, DeferredItem<BlockItem> item) {
         output.accept(item);
-        for (ChessMaterial w : ChessMaterial.values()) {
-            if (w == ChessMaterial.OAK) continue;
-            output.accept(boardVariant(item, w, false));
-        }
-        for (ChessMaterial w : ChessMaterial.values()) {
-            output.accept(boardVariant(item, w, true));
-        }
+        output.accept(boardStack(item.get(), true));
     }
 
     public static final DeferredHolder<CreativeModeTab, CreativeModeTab> CHESSBOARD_TAB =
@@ -208,23 +207,38 @@ public class ChessboardMod {
         ITEMS.register(modEventBus);
         TABS.register(modEventBus);
         BLOCK_ENTITIES.register(modEventBus);
+        MENUS.register(modEventBus);
         NeoForge.EVENT_BUS.register(this);
         modContainer.registerConfig(ModConfig.Type.CLIENT, Config.CLIENT_SPEC);
         modEventBus.addListener(ChessboardMod::registerPayloads);
     }
 
-    /** 网络载荷注册：设置棋盘上的棋子材质（写方块实体，自动同步） */
+    /** 网络载荷注册：客户端请求打开棋盘皮肤界面 */
     private static void registerPayloads(RegisterPayloadHandlersEvent event) {
         var registrar = event.registrar("1").optional();
-        registrar.playToServer(SetMaterialPayload.TYPE, SetMaterialPayload.STREAM_CODEC,
-                (payload, context) -> context.enqueueWork(() -> {
-                    var player = context.player();
-                    if (player == null) return;
-                    var level = player.level();
-                    if (level.getBlockEntity(payload.pos()) instanceof ChessboardBlockEntity be) {
-                        be.setMaterial(payload.slot(), payload.material());
-                    }
-                }));
+        registrar.playToServer(OpenBoardScreenPayload.TYPE, OpenBoardScreenPayload.STREAM_CODEC,
+                (payload, context) -> context.enqueueWork(() -> openBoardScreen(context.player(), payload.pos())));
+    }
+
+    /**
+     * 校验并打开皮肤界面。客户端发来的坐标不可信，所以这里把该查的都查一遍。
+     *
+     * <p>槽位布局（这个棋类要显示哪几个皮肤槽）在这里算好，随开界面一起发给客户端 ——
+     * {@code AbstractContainerMenu.slots} 的下标就是协议里的槽位号，两边必须构造出
+     * 完全一致的列表，不能让客户端自己猜。
+     */
+    private static void openBoardScreen(Player player, BlockPos pos) {
+        if (!(player instanceof ServerPlayer sp)) return;
+        if (sp.distanceToSqr(Vec3.atCenterOf(pos)) > 64.0) return;
+        if (!(sp.level().getBlockEntity(pos) instanceof ChessboardBlockEntity be)) return;
+        int[] shown = SkinData.slotsFor(be.gameLogic());
+        sp.openMenu(new SimpleMenuProvider(
+                        (id, inv, p) -> new BoardSkinMenu(id, inv, pos, shown),
+                        Component.literal("棋盘样式")),
+                buf -> {
+                    buf.writeBlockPos(pos);
+                    buf.writeVarIntArray(shown);
+                });
     }
 
     /** 定位棋盘方块实体、执行操作并反馈的命令模板；failMsg 为 null 时失败不提示 */
@@ -303,31 +317,6 @@ public class ChessboardMod {
                                                                         ctx.getSource().sendSuccess(() -> Component.literal("已导入"), true);
                                                                     }
                                                                     return 1;
-                                                                }))))))
-                        .then(Commands.literal("wood")
-                                .then(Commands.argument("x", IntegerArgumentType.integer())
-                                        .then(Commands.argument("y", IntegerArgumentType.integer())
-                                                .then(Commands.argument("z", IntegerArgumentType.integer())
-                                                        .then(Commands.argument("wood", StringArgumentType.word())
-                                                                .executes(ctx -> {
-                                                                    BlockPos pos = new BlockPos(
-                                                                            IntegerArgumentType.getInteger(ctx, "x"),
-                                                                            IntegerArgumentType.getInteger(ctx, "y"),
-                                                                            IntegerArgumentType.getInteger(ctx, "z"));
-                                                                    String woodName = StringArgumentType.getString(ctx, "wood");
-                                                                    var level = ctx.getSource().getLevel();
-                                                                    BlockState cur = level.getBlockState(pos);
-                                                                    if (cur.getBlock() instanceof ChessboardBlock
-                                                                            && cur.hasProperty(ChessboardBlock.WOOD)) {
-                                                                        ChessMaterial wood = ChessMaterial.find(woodName);
-                                                                        if (wood != null) {
-                                                                            level.setBlock(pos, cur.setValue(ChessboardBlock.WOOD, wood), 3);
-                                                                            ctx.getSource().sendSuccess(() -> Component.literal("棋盘木种已改为 " + woodName), true);
-                                                                            return 1;
-                                                                        }
-                                                                    }
-                                                                    ctx.getSource().sendFailure(Component.literal("无法修改该方块的木种"));
-                                                                    return 0;
                                                                 }))))))
         );
     }

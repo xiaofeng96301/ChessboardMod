@@ -1,10 +1,12 @@
 package com.chessboard.client.renderer;
 
+import com.chessboard.SkinData;
 import com.chessboard.block.ChessboardBlock;
 import com.chessboard.blockentity.ChessboardBlockEntity;
 import com.chessboard.game.BoardGameLogic;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.block.BlockStateModelSet;
+import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.SectionPos;
 import net.minecraft.world.level.Level;
@@ -67,15 +69,15 @@ public final class ChessboardSectionGeometry {
         // 不强制加载区块；棋盘只占 1 格，必然只属于一个区块
         if (!(level.getChunk(cx, cz, ChunkStatus.FULL, false) instanceof LevelChunk chunk)) return;
 
-        List<BoardGeometrySnapshot> snaps = null;
+        // 先扫有没有棋盘 —— 绝大多数区块没有，这样能避免每次网格重建都去取模型集合
+        List<ChessboardBlockEntity> boards = null;
         for (BlockEntity be : chunk.getBlockEntities().values()) {
             if (!(be instanceof ChessboardBlockEntity board)) continue;
             if (SectionPos.blockToSectionCoord(board.getBlockPos().getY()) != cy) continue;
-            if (snaps == null) snaps = new ArrayList<>();
-            snaps.add(snapshot(board, origin));
+            if (boards == null) boards = new ArrayList<>();
+            boards.add(board);
         }
-        // 本区块没有棋盘（绝大多数情况）：不注册 renderer，保留空区块优化
-        if (snaps == null) return;
+        if (boards == null) return; // 不注册 renderer，保留空区块优化
 
         BlockStateModelSet models;
         try {
@@ -83,31 +85,47 @@ public final class ChessboardSectionGeometry {
         } catch (Exception e) {
             return; // 模型尚未初始化完成
         }
+
+        List<BoardGeometrySnapshot> snaps = new ArrayList<>(boards.size());
+        for (ChessboardBlockEntity board : boards) snaps.add(snapshot(board, origin, models));
+
         final List<BoardGeometrySnapshot> list = snaps;
         event.addRenderer(ctx -> emit(ctx, list, models));
     }
 
     /** 主线程：把棋盘状态拷贝成 worker 线程可安全只读的快照 */
-    private static BoardGeometrySnapshot snapshot(ChessboardBlockEntity board, BlockPos origin) {
+    private static BoardGeometrySnapshot snapshot(ChessboardBlockEntity board, BlockPos origin,
+                                                  BlockStateModelSet models) {
         BoardGameLogic g = board.gameLogic();
         int total = g.rows() * g.cols();
         int[] pieces = board.pieces().clone();
         boolean[] excluded = ChessboardAnimTracker.INSTANCE.exclusionSnapshot(board.getBlockPos(), total);
-        String[] materials = board.materials();
 
         // 主线程预构建方块状态：worker 线程不碰注册表
         Map<Integer, BlockState> states = new HashMap<>();
         Map<Integer, BlockState> charStates = new HashMap<>();
         for (int p : pieces) {
             if (p == 0 || states.containsKey(p)) continue;
-            states.put(p, ChessboardPieceGeometry.stateFor(g, p, materials));
+            states.put(p, ChessboardPieceGeometry.stateFor(g, p));
             BlockState cs = ChessboardPieceGeometry.charStateFor(g, p);
             if (cs != null) charStates.put(p, cs);
         }
         BlockPos bp = board.getBlockPos();
+        BlockState boardState = board.getBlockState();
         return new BoardGeometrySnapshot(bp, bp.subtract(origin),
-                board.getBlockState().getValue(ChessboardBlock.FACING),
-                g, pieces, excluded, states, charStates);
+                boardState.getValue(ChessboardBlock.FACING),
+                g, pieces, excluded, states, charStates, boardState,
+                resolveSkinned(board, models));
+    }
+
+    /** 主线程：把各槽位的皮肤方块 ID 解析成贴图（没设 / 解析不出来的槽留 null） */
+    private static TextureAtlasSprite[] resolveSkinned(ChessboardBlockEntity board, BlockStateModelSet models) {
+        String[] ids = board.skins();
+        TextureAtlasSprite[] sprites = new TextureAtlasSprite[SkinData.SLOT_COUNT];
+        for (int i = 0; i < sprites.length; i++) {
+            sprites[i] = ChessboardPieceGeometry.skinSprite(SkinData.stateOf(ids[i]), models);
+        }
+        return sprites;
     }
 
     /** worker 线程：把静止棋子发射进区块顶点缓冲 */
@@ -118,9 +136,12 @@ public final class ChessboardSectionGeometry {
         for (BoardGeometrySnapshot s : snaps) {
             BoardGameLogic g = s.logic();
             int cols = g.cols();
+            TextureAtlasSprite[] skins = s.skinSprites();
             // 每块棋盘一个上下文：内含原版光照器（逐顶点光照 + 面朝向明暗）
             var ec = new ChessboardPieceGeometry.EmitContext(ctx, models, s.boardPos(),
                     s.offset().getX(), s.offset().getY(), s.offset().getZ());
+            // 棋盘本体的皮肤：只在设过皮肤时才多发射一层，没设的棋盘一个顶点都不多画
+            ChessboardPieceGeometry.emitBoardSkin(ec, s.boardState(), skins[SkinData.SLOT_BOARD]);
             for (int row = 0; row < g.rows(); row++) {
                 for (int col = 0; col < cols; col++) {
                     int cell = row * cols + col;
@@ -128,12 +149,15 @@ public final class ChessboardSectionGeometry {
                     if (piece == 0 || s.excluded()[cell]) continue;
                     BlockState state = s.states().get(piece);
                     if (state == null) continue;
+                    // 每方各自一个皮肤槽，所以同一块棋盘上不同阵营的棋子贴图可以不一样
+                    int slot = SkinData.slotFor(g, piece);
+                    TextureAtlasSprite skin = slot >= 0 ? skins[slot] : null;
                     ChessboardPieceGeometry.gridPos(g, s.facing(), row, col, pos);
-                    ChessboardPieceGeometry.emitPiece(ec, state, pos[0], pos[1], g, s.facing(), piece, false);
-                    // 汉字：贴在棋子圆片上的第二层
+                    ChessboardPieceGeometry.emitPiece(ec, state, pos[0], pos[1], g, s.facing(), piece, false, skin);
+                    // 汉字：贴在棋子圆片上的第二层（本模组贴图，皮肤不会覆盖它）
                     BlockState charState = s.charStates().get(piece);
                     if (charState != null) {
-                        ChessboardPieceGeometry.emitPiece(ec, charState, pos[0], pos[1], g, s.facing(), piece, true);
+                        ChessboardPieceGeometry.emitPiece(ec, charState, pos[0], pos[1], g, s.facing(), piece, true, skin);
                     }
                 }
             }

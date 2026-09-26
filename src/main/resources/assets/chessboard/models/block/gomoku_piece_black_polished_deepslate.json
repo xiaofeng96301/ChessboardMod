@@ -1,6 +1,0 @@
-{
-  "parent": "chessboard:block/gomoku_pieces_black",
-  "textures": {
-    "1": "minecraft:block/polished_deepslate"
-  }
-}

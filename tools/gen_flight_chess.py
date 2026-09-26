@@ -1,10 +1,18 @@
-"""生成飞行棋的全部资源：纹理 + blockstate + 模型 + 物品模型 + 配方 + 语言条目。
+"""生成飞行棋的**纹理**、棋子/骰子的 blockstate 与模型，并打印要同步到 Java 的常量。
 
 用法:  python tools/gen_flight_chess.py
 
 **棋盘形状不在这里写死** —— 布局在 tools/flight_layout.txt，改那个文件即可。
-本脚本负责：解析布局 → 校验 → 画纹理 → 生成全部 json → 打印要同步到
-FlightChessLogic.java 的常量。
+
+.. warning::
+
+   **棋盘（{BOARD}）的 blockstate / 模型 / 物品模型 / 配方 / 语言条目都不归本脚本管了**，
+   统一由 ``tools/gen_chessboard_resources.py`` 生成。原因是棋盘外观已经改成由方块实体上的
+   动态皮肤决定，方块状态里不再有木种变体；如果在这里重新生成那 96 条 ``wood=`` 变体，
+   会撞上一个已经不存在的属性，方块直接渲染成紫黑格。
+
+   本脚本只负责：解析布局 → 校验 → 画纹理 → 棋子/图标/骰子的 blockstate 与模型
+   → 打印要同步到 FlightChessLogic.java 的常量。
 
 纹理画法要点（错了就会和棋子位置对不上）：
   模型 16px ↔ 纹理 TEX。棋盘顶面 up 面的 uv 是 [0,0,16,16]，MC 规定 up 面的
@@ -24,7 +32,6 @@ from PIL import Image, ImageDraw, ImageFilter
 
 ROOT = Path(__file__).resolve().parent.parent
 ASSETS = ROOT / "src/main/resources/assets/chessboard"
-DATA = ROOT / "src/main/resources/data/chessboard"
 MODID = "chessboard"
 BOARD = "flight_chess_board"
 
@@ -186,49 +193,6 @@ def span_pad(box, pad):
 # ── 队伍 ──
 
 TEAMS = ["red", "yellow", "blue", "green"]
-TEAM_ZH = {"red": "红队", "yellow": "黄队", "blue": "蓝队", "green": "绿队"}
-TEAM_EN = {"red": "Red", "yellow": "Yellow", "blue": "Blue", "green": "Green"}
-# 取原版混凝土的近似色
-TEAM_RGB = {
-    "red": (142, 33, 33),
-    "yellow": (240, 175, 21),
-    "blue": (44, 46, 143),
-    "green": (94, 124, 22),
-}
-
-WOODS = [
-    ("oak", ["minecraft:stripped_oak_log", "minecraft:stripped_oak_wood"]),
-    ("spruce", ["minecraft:stripped_spruce_log", "minecraft:stripped_spruce_wood"]),
-    ("birch", ["minecraft:stripped_birch_log", "minecraft:stripped_birch_wood"]),
-    ("acacia", ["minecraft:stripped_acacia_log", "minecraft:stripped_acacia_wood"]),
-    ("dark_oak", ["minecraft:stripped_dark_oak_log", "minecraft:stripped_dark_oak_wood"]),
-    ("cherry", ["minecraft:stripped_cherry_log", "minecraft:stripped_cherry_wood"]),
-    ("pale_oak", ["minecraft:stripped_pale_oak_log", "minecraft:stripped_pale_oak_wood"]),
-    ("polished_granite", ["minecraft:polished_granite"]),
-    ("polished_diorite", ["minecraft:polished_diorite"]),
-    ("polished_andesite", ["minecraft:polished_andesite"]),
-    ("polished_deepslate", ["minecraft:polished_deepslate"]),
-    ("polished_blackstone", ["minecraft:polished_blackstone"]),
-]
-WOOD_ZH = {
-    "oak": "橡木", "spruce": "云杉木", "birch": "白桦木", "acacia": "金合欢木",
-    "dark_oak": "深色橡木", "cherry": "樱花木", "pale_oak": "苍白橡木",
-    "polished_granite": "磨制花岗岩", "polished_diorite": "磨制闪长岩",
-    "polished_andesite": "磨制安山岩", "polished_deepslate": "磨制深板岩",
-    "polished_blackstone": "磨制黑石",
-}
-WOOD_EN = {
-    "oak": "Oak", "spruce": "Spruce", "birch": "Birch", "acacia": "Acacia",
-    "dark_oak": "Dark Oak", "cherry": "Cherry", "pale_oak": "Pale Oak",
-    "polished_granite": "Polished Granite", "polished_diorite": "Polished Diorite",
-    "polished_andesite": "Polished Andesite", "polished_deepslate": "Polished Deepslate",
-    "polished_blackstone": "Polished Blackstone",
-}
-
-
-def variant_index(wood_i, frameless):
-    """与 ChessboardMod.variantIndex 一致：wood.ordinal()*2 + frameless"""
-    return wood_i * 2 + (1 if frameless else 0)
 
 
 # ── 纹理 ──
@@ -495,37 +459,6 @@ def write_json(path, obj):
         f.write("\n")
 
 
-def gen_blockstate_and_models():
-    """棋盘：96 variants blockstate + 24 个模型"""
-    variants = {}
-    for wi, (wood, _) in enumerate(WOODS):
-        for frameless in (False, True):
-            suffix = f"{wood}_frameless" if frameless else wood
-            model_name = f"{BOARD}_{suffix}"
-            # 非橡木的 base 模型（橡木走 BOARD.json 那个不带后缀的）
-            write_json(ASSETS / f"models/block/{model_name}.json", {
-                "parent": f"{MODID}:block/{'board_frameless' if frameless else 'board'}",
-                "textures": {
-                    "0": f"{MODID}:block/{BOARD}",
-                    "2": _wood_texture(wood),
-                },
-            })
-            for facing, y in (("south", 0), ("west", 90), ("north", 180), ("east", 270)):
-                variants[f"facing={facing},wood={wood},frameless={'true' if frameless else 'false'}"] = {
-                    "model": f"{MODID}:block/{model_name}",
-                    "y": y,
-                }
-    write_json(ASSETS / f"blockstates/{BOARD}.json", {"variants": variants})
-    print(f"  blockstates/{BOARD}.json ({len(variants)} variants)")
-    print(f"  models/block/{BOARD}_*.json (24)")
-
-
-def _wood_texture(wood):
-    if wood.startswith("polished_"):
-        return f"minecraft:block/{wood}"
-    return f"minecraft:block/stripped_{wood}_log"
-
-
 def gen_piece_and_dice_assets():
     """棋子（4 队）、飞机图标、骰子（6 面）的 blockstate 与模型"""
     # 棋子
@@ -589,96 +522,15 @@ def gen_piece_and_dice_assets():
     print("  blockstates/flight_dice.json (6) + models/block/flight_dice_*.json (6)")
 
 
-def gen_item_model():
-    """物品模型：按 custom_model_data 0..23 挑棋盘变体模型"""
-    entries = []
-    for wi, (wood, _) in enumerate(WOODS):
-        for frameless in (False, True):
-            if wood == "oak" and not frameless:
-                continue  # 0 档就是基础物品
-            suffix = f"{wood}_frameless" if frameless else wood
-            entries.append({
-                "threshold": float(variant_index(wi, frameless)),
-                "model": {"type": "minecraft:model", "model": f"{MODID}:block/{BOARD}_{suffix}"},
-            })
-    # range_dispatch 要求按 threshold 升序
-    entries.sort(key=lambda e: e["threshold"])
-    entries.insert(0, {
-        "threshold": 0.0,
-        "model": {"type": "minecraft:model", "model": f"{MODID}:block/{BOARD}_oak"},
-    })
-    write_json(ASSETS / f"items/{BOARD}.json", {
-        "model": {
-            "type": "minecraft:range_dispatch",
-            "property": "minecraft:custom_model_data",
-            "entries": entries,
-            "fallback": {"type": "minecraft:model", "model": f"{MODID}:block/{BOARD}_oak"},
-        },
-    })
-    print(f"  items/{BOARD}.json ({len(entries)} entries)")
-
-
-def gen_recipes():
-    """24 个切石配方：基础（橡木带框）+ 11 非橡木带框 + 12 无框"""
-    n = 0
-    # 基础：橡木带框，无 components
-    write_json(DATA / f"recipe/{BOARD}.json", {
-        "type": "minecraft:stonecutting",
-        "ingredient": ["minecraft:stripped_oak_log", "minecraft:stripped_oak_wood"],
-        "result": {"id": f"{MODID}:{BOARD}"},
-    })
-    n += 1
-
-    for wi, (wood, ingredients) in enumerate(WOODS):
-        for frameless in (False, True):
-            if wood == "oak" and not frameless:
-                continue
-            suffix = f"{wood}_frameless" if frameless else wood
-            write_json(DATA / f"recipe/{BOARD}_{suffix}.json", {
-                "type": "minecraft:stonecutting",
-                "ingredient": ingredients,
-                "result": {
-                    "id": f"{MODID}:{BOARD}",
-                    "components": {
-                        "minecraft:block_state": {
-                            "wood": wood,
-                            "frameless": "true" if frameless else "false",
-                        },
-                        "minecraft:custom_model_data": {
-                            "floats": [float(variant_index(wi, frameless))],
-                            "flags": [], "strings": [], "colors": [],
-                        },
-                        "minecraft:custom_name": {
-                            "translate": f"item.{MODID}.variant.{BOARD}_{suffix}"
-                        },
-                    },
-                },
-            })
-            n += 1
-    print(f"  recipe/{BOARD}*.json ({n})")
-
-
 def gen_lang():
-    """往现有语言文件里补飞行棋的方块名与 24 个变体名"""
-    for lang, names in (("en_us", WOOD_EN), ("zh_cn", WOOD_ZH)):
+    """往现有语言文件里补飞行棋的方块名（变体名归 gen_chessboard_resources.py 管）"""
+    for lang, name in (("en_us", "Aeroplane Chess"), ("zh_cn", "飞行棋")):
         path = ASSETS / f"lang/{lang}.json"
         with open(path, encoding="utf-8") as f:
             data = json.load(f)
-
-        data[f"block.{MODID}.{BOARD}"] = "Aeroplane Chess" if lang == "en_us" else "飞行棋"
-        for wood, _ in WOODS:
-            for frameless in (False, True):
-                if wood == "oak" and not frameless:
-                    continue
-                suffix = f"{wood}_frameless" if frameless else wood
-                key = f"item.{MODID}.variant.{BOARD}_{suffix}"
-                if lang == "en_us":
-                    data[key] = f"{'Frameless ' if frameless else ''}{names[wood]} Aeroplane Chess"
-                else:
-                    data[key] = f"{'无框' if frameless else ''}{names[wood]}飞行棋"
-
+        data[f"block.{MODID}.{BOARD}"] = name
         write_json(path, data)
-        print(f"  lang/{lang}.json (+{1 + 23} keys)")
+        print(f"  lang/{lang}.json (block name)")
 
 
 def print_java_sync():
@@ -709,11 +561,8 @@ if __name__ == "__main__":
     draw_board()
     draw_icon()
     draw_dice()
-    print("资源:")
-    gen_blockstate_and_models()
+    print("资源（棋子 / 图标 / 骰子；棋盘 JSON 归 gen_chessboard_resources.py）:")
     gen_piece_and_dice_assets()
-    gen_item_model()
-    gen_recipes()
     gen_lang()
     print_java_sync()
-    print("完成")
+    print("完成（记得也跑一次 tools/gen_chessboard_resources.py）")

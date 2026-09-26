@@ -1,6 +1,0 @@
-{
-  "parent": "chessboard:block/chess_queen",
-  "textures": {
-    "1": "minecraft:block/stripped_birch_log"
-  }
-}

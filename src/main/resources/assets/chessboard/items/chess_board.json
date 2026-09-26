@@ -1,180 +1,20 @@
 {
   "model": {
-    "type": "minecraft:range_dispatch",
-    "property": "minecraft:custom_model_data",
-    "entries": [
+    "type": "minecraft:select",
+    "property": "minecraft:block_state",
+    "block_state_property": "frameless",
+    "cases": [
       {
-        "threshold": 0.0,
+        "when": "true",
         "model": {
           "type": "minecraft:model",
-          "model": "chessboard:block/chess_board_oak"
-        }
-      },
-      {
-        "threshold": 1.0,
-        "model": {
-          "type": "minecraft:model",
-          "model": "chessboard:block/chess_board_oak_frameless"
-        }
-      },
-      {
-        "threshold": 2.0,
-        "model": {
-          "type": "minecraft:model",
-          "model": "chessboard:block/chess_board_spruce"
-        }
-      },
-      {
-        "threshold": 3.0,
-        "model": {
-          "type": "minecraft:model",
-          "model": "chessboard:block/chess_board_spruce_frameless"
-        }
-      },
-      {
-        "threshold": 4.0,
-        "model": {
-          "type": "minecraft:model",
-          "model": "chessboard:block/chess_board_birch"
-        }
-      },
-      {
-        "threshold": 5.0,
-        "model": {
-          "type": "minecraft:model",
-          "model": "chessboard:block/chess_board_birch_frameless"
-        }
-      },
-      {
-        "threshold": 6.0,
-        "model": {
-          "type": "minecraft:model",
-          "model": "chessboard:block/chess_board_acacia"
-        }
-      },
-      {
-        "threshold": 7.0,
-        "model": {
-          "type": "minecraft:model",
-          "model": "chessboard:block/chess_board_acacia_frameless"
-        }
-      },
-      {
-        "threshold": 8.0,
-        "model": {
-          "type": "minecraft:model",
-          "model": "chessboard:block/chess_board_dark_oak"
-        }
-      },
-      {
-        "threshold": 9.0,
-        "model": {
-          "type": "minecraft:model",
-          "model": "chessboard:block/chess_board_dark_oak_frameless"
-        }
-      },
-      {
-        "threshold": 10.0,
-        "model": {
-          "type": "minecraft:model",
-          "model": "chessboard:block/chess_board_cherry"
-        }
-      },
-      {
-        "threshold": 11.0,
-        "model": {
-          "type": "minecraft:model",
-          "model": "chessboard:block/chess_board_cherry_frameless"
-        }
-      },
-      {
-        "threshold": 12.0,
-        "model": {
-          "type": "minecraft:model",
-          "model": "chessboard:block/chess_board_pale_oak"
-        }
-      },
-      {
-        "threshold": 13.0,
-        "model": {
-          "type": "minecraft:model",
-          "model": "chessboard:block/chess_board_pale_oak_frameless"
-        }
-      },
-      {
-        "threshold": 14.0,
-        "model": {
-          "type": "minecraft:model",
-          "model": "chessboard:block/chess_board_polished_granite"
-        }
-      },
-      {
-        "threshold": 15.0,
-        "model": {
-          "type": "minecraft:model",
-          "model": "chessboard:block/chess_board_polished_granite_frameless"
-        }
-      },
-      {
-        "threshold": 16.0,
-        "model": {
-          "type": "minecraft:model",
-          "model": "chessboard:block/chess_board_polished_diorite"
-        }
-      },
-      {
-        "threshold": 17.0,
-        "model": {
-          "type": "minecraft:model",
-          "model": "chessboard:block/chess_board_polished_diorite_frameless"
-        }
-      },
-      {
-        "threshold": 18.0,
-        "model": {
-          "type": "minecraft:model",
-          "model": "chessboard:block/chess_board_polished_andesite"
-        }
-      },
-      {
-        "threshold": 19.0,
-        "model": {
-          "type": "minecraft:model",
-          "model": "chessboard:block/chess_board_polished_andesite_frameless"
-        }
-      },
-      {
-        "threshold": 20.0,
-        "model": {
-          "type": "minecraft:model",
-          "model": "chessboard:block/chess_board_polished_deepslate"
-        }
-      },
-      {
-        "threshold": 21.0,
-        "model": {
-          "type": "minecraft:model",
-          "model": "chessboard:block/chess_board_polished_deepslate_frameless"
-        }
-      },
-      {
-        "threshold": 22.0,
-        "model": {
-          "type": "minecraft:model",
-          "model": "chessboard:block/chess_board_polished_blackstone"
-        }
-      },
-      {
-        "threshold": 23.0,
-        "model": {
-          "type": "minecraft:model",
-          "model": "chessboard:block/chess_board_polished_blackstone_frameless"
+          "model": "chessboard:block/chess_board_frameless"
         }
       }
     ],
     "fallback": {
       "type": "minecraft:model",
-      "model": "chessboard:block/chess_board_oak"
+      "model": "chessboard:block/chess_board"
     }
   }
 }
