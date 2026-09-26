@@ -6,9 +6,13 @@ import com.chessboard.block.ChessChar;
 import com.chessboard.block.ChessCharBlock;
 import com.chessboard.block.ChessMaterial;
 import com.chessboard.block.ChessPieceBlock;
+import com.chessboard.block.FlightDiceBlock;
+import com.chessboard.block.FlightPieceBlock;
+import com.chessboard.block.FlightTeam;
 import com.chessboard.game.BoardGameLogic;
 import com.chessboard.game.ChessLogic;
 import com.chessboard.game.ChineseChessLogic;
+import com.chessboard.game.FlightChessLogic;
 import com.chessboard.game.GomokuLogic;
 import com.chessboard.game.TicTacToeLogic;
 import com.mojang.blaze3d.vertex.PoseStack;
@@ -99,6 +103,15 @@ public final class ChessboardPieceGeometry {
                 };
                 yield withMaterial(block, materials, slot);
             }
+            case FlightChessLogic fcl -> {
+                // 中央格是骰子，其余格是四色飞机（颜色由 TEAM 属性决定，不走材质槽位）
+                if (FlightChessLogic.isDice(piece)) {
+                    yield ChessboardMod.FLIGHT_DICE.get().defaultBlockState()
+                            .setValue(FlightDiceBlock.FACE, FlightChessLogic.faceOf(piece));
+                }
+                yield ChessboardMod.FLIGHT_PIECE.get().defaultBlockState()
+                        .setValue(FlightPieceBlock.TEAM, FlightTeam.of(fcl.side(piece)));
+            }
             default -> ChessboardMod.CHESS_PIECE_MODEL.get().defaultBlockState();
         };
     }
@@ -108,6 +121,12 @@ public final class ChessboardPieceGeometry {
      * 汉字已做成贴图，可与棋子一起烘焙进区块几何。
      */
     public static BlockState charStateFor(BoardGameLogic g, int piece) {
+        // 飞行棋：飞机圆片上叠一层飞机图标（四队共用同一张图），骰子不叠
+        if (g instanceof FlightChessLogic) {
+            return FlightChessLogic.isPlane(piece)
+                    ? ChessboardMod.FLIGHT_ICON.get().defaultBlockState()
+                    : null;
+        }
         if (!(g instanceof ChineseChessLogic)) return null;
         if (ChineseChessLogic.isHidden(piece)) return null;
         ChessChar c = ChessChar.of(ChineseChessLogic.type(piece), g.side(piece));
@@ -168,7 +187,7 @@ public final class ChessboardPieceGeometry {
         ps.pushPose();
         ps.translate(ec.ox + wx, ec.oy + g.pieceHeight(), ec.oz + wz);
         ps.mulPose(Axis.YP.rotationDegrees(facingDegrees(facing, textLike)));
-        if (textLike && g.side(piece) != 0) ps.mulPose(Axis.YP.rotationDegrees(180));
+        if (textLike && g.flipOverlayBySide() && g.side(piece) != 0) ps.mulPose(Axis.YP.rotationDegrees(180));
         if (g.pieceFlipX(piece)) ps.mulPose(Axis.XP.rotationDegrees(180));
         float ry = g.pieceYRotation(piece);
         if (ry != 0) ps.mulPose(Axis.YP.rotationDegrees(ry));

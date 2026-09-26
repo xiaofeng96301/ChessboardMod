@@ -1,0 +1,16 @@
+{
+  "variants": {
+    "team=red": {
+      "model": "chessboard:block/flight_piece_red"
+    },
+    "team=yellow": {
+      "model": "chessboard:block/flight_piece_yellow"
+    },
+    "team=blue": {
+      "model": "chessboard:block/flight_piece_blue"
+    },
+    "team=green": {
+      "model": "chessboard:block/flight_piece_green"
+    }
+  }
+}

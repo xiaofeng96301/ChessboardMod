@@ -1,0 +1,6 @@
+{
+  "parent": "chessboard:block/piece_flat",
+  "textures": {
+    "1": "minecraft:block/blue_concrete"
+  }
+}

@@ -4,10 +4,13 @@ import com.chessboard.block.ChessCharBlock;
 import com.chessboard.block.ChessMaterial;
 import com.chessboard.block.ChessPieceBlock;
 import com.chessboard.block.ChessboardBlock;
+import com.chessboard.block.FlightDiceBlock;
+import com.chessboard.block.FlightPieceBlock;
 import com.chessboard.blockentity.ChessboardBlockEntity;
 import com.chessboard.game.BoardGameLogic;
 import com.chessboard.game.ChessLogic;
 import com.chessboard.game.ChineseChessLogic;
+import com.chessboard.game.FlightChessLogic;
 import com.chessboard.game.GomokuLogic;
 import com.chessboard.game.TicTacToeLogic;
 import com.chessboard.network.SetMaterialPayload;
@@ -27,6 +30,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.BlockItemStateProperties;
 import net.minecraft.world.level.ItemLike;
 import net.minecraft.world.item.component.CustomModelData;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
@@ -84,10 +88,23 @@ public class ChessboardMod {
             "tictactoe_board", TicTacToeLogic.INSTANCE, new TicTacToeLogic(3.28f, 9.34f));
     static final DeferredBlock<ChessboardBlock> CHESS_BOARD = registerBoard(
             "chess_board", ChessLogic.INSTANCE, new ChessLogic(2.0f, 12.0f));
+    static final DeferredBlock<ChessboardBlock> FLIGHT_CHESS_BOARD = registerBoard(
+            "flight_chess_board", FlightChessLogic.INSTANCE, new FlightChessLogic(1.115f, 13.77f));
 
     /** 棋子汉字模型方块（纯渲染用，带汉字属性） */
     public static final DeferredBlock<ChessCharBlock> CHINESE_PIECE_CHAR = BLOCKS.registerBlock(
             "chinese_piece_char", ChessCharBlock::new, p -> p.mapColor(MapColor.WOOD).noOcclusion());
+
+    // 下面三个都纯粹是渲染用、从不放置（和 registerPiece 一样），MapColor 无实际意义
+    /** 飞行棋棋子圆片（按队换混凝土贴图） */
+    public static final DeferredBlock<FlightPieceBlock> FLIGHT_PIECE = BLOCKS.registerBlock(
+            "flight_piece", FlightPieceBlock::new, p -> p.mapColor(MapColor.WOOD).noOcclusion());
+    /** 飞行棋圆片上的飞机图标层（四队共用，纯渲染用） */
+    public static final DeferredBlock<Block> FLIGHT_ICON = BLOCKS.registerBlock(
+            "flight_icon", Block::new, p -> p.mapColor(MapColor.WOOD).noOcclusion());
+    /** 飞行棋中央的骰子（按 FACE 换朝上的点数） */
+    public static final DeferredBlock<FlightDiceBlock> FLIGHT_DICE = BLOCKS.registerBlock(
+            "flight_dice", FlightDiceBlock::new, p -> p.mapColor(MapColor.WOOD).noOcclusion());
 
     // 棋子模型方块（带材质属性）
     public static final DeferredBlock<ChessPieceBlock> CHESS_PIECE_MODEL = registerPiece("chess_piece");
@@ -116,7 +133,8 @@ public class ChessboardMod {
     public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<ChessboardBlockEntity>> CHESSBOARD_BE =
             BLOCK_ENTITIES.register("board_game", () -> {
                 var t = new BlockEntityType<>(ChessboardBlockEntity::new,
-                        Set.of(CHINESE_CHESSBOARD.get(), GOMOKU_BOARD.get(), TICTACTOE_BOARD.get(), CHESS_BOARD.get()), true);
+                        Set.of(CHINESE_CHESSBOARD.get(), GOMOKU_BOARD.get(), TICTACTOE_BOARD.get(),
+                                CHESS_BOARD.get(), FLIGHT_CHESS_BOARD.get()), true);
                 ChessboardBlockEntity.TYPE = t;
                 return t;
             });
@@ -126,6 +144,7 @@ public class ChessboardMod {
     static final DeferredItem<BlockItem> GOMOKU_BOARD_ITEM = ITEMS.registerSimpleBlockItem(GOMOKU_BOARD);
     static final DeferredItem<BlockItem> TICTACTOE_BOARD_ITEM = ITEMS.registerSimpleBlockItem(TICTACTOE_BOARD);
     static final DeferredItem<BlockItem> CHESS_BOARD_ITEM = ITEMS.registerSimpleBlockItem(CHESS_BOARD);
+    static final DeferredItem<BlockItem> FLIGHT_CHESS_BOARD_ITEM = ITEMS.registerSimpleBlockItem(FLIGHT_CHESS_BOARD);
 
     /** 变体索引：wood*2 + frameless，供物品模型 custom_model_data 切换 */
     public static int variantIndex(ChessMaterial wood, boolean frameless) {
@@ -180,6 +199,7 @@ public class ChessboardMod {
                         addBoardVariants(output, CHESS_BOARD_ITEM);
                         addBoardVariants(output, GOMOKU_BOARD_ITEM);
                         addBoardVariants(output, TICTACTOE_BOARD_ITEM);
+                        addBoardVariants(output, FLIGHT_CHESS_BOARD_ITEM);
                     })
                     .build());
 

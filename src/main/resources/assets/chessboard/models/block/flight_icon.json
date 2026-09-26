@@ -1,0 +1,32 @@
+{
+  "format_version": "1.21.11",
+  "textures": {
+    "0": "chessboard:block/flight_icon",
+    "particle": "chessboard:block/flight_icon"
+  },
+  "elements": [
+    {
+      "from": [
+        0.5,
+        1,
+        0.5
+      ],
+      "to": [
+        4.5,
+        1.05,
+        4.5
+      ],
+      "faces": {
+        "up": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#0"
+        }
+      }
+    }
+  ]
+}

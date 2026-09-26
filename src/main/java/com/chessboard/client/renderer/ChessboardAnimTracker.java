@@ -3,6 +3,7 @@ package com.chessboard.client.renderer;
 import com.chessboard.blockentity.ChessboardBlockEntity;
 import com.chessboard.game.BoardGameLogic;
 import com.chessboard.game.ChineseChessLogic;
+import com.chessboard.game.FlightChessLogic;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.SectionPos;
@@ -35,6 +36,9 @@ public final class ChessboardAnimTracker {
     /** 五子棋连五胜利动画总时长（毫秒） */
     public static final int WIN_ANIM_MS = 1500;
 
+    /** 飞行棋骰子翻滚动画总时长（毫秒） */
+    public static final int DICE_ROLL_MS = 900;
+
     private final Map<BlockPos, BoardAnim> boards = new HashMap<>();
 
     private ChessboardAnimTracker() {}
@@ -50,6 +54,8 @@ public final class ChessboardAnimTracker {
         int flipRow = -1, flipCol = -1;
         int[] winCells;
         long selMs, unselMs, moveMs, flipMs, winMs;
+        /** 飞行棋骰子上一次被掷出的时刻（0 = 从未掷过） */
+        long rollMs;
         /** 每格期望由渲染器绘制：0 = 交给几何烘焙，非 0 = 渲染器画。只在数据变化时重算（见 {@link #recompute}） */
         long[] dynamicUntil;
         /**
@@ -122,6 +128,11 @@ public final class ChessboardAnimTracker {
                     }
                 }
             }
+            // 飞行棋：骰子点数变了 → 播翻滚动画
+            if (g instanceof FlightChessLogic
+                    && a.prevPieces[FlightChessLogic.DICE_CELL] != pieces[FlightChessLogic.DICE_CELL]) {
+                a.rollMs = now;
+            }
             a.moveMs = now;
             System.arraycopy(pieces, 0, a.prevPieces, 0, total);
         }
@@ -163,6 +174,11 @@ public final class ChessboardAnimTracker {
         mark(d, a.toRow, a.toCol, cols, a.moveMs + g.pieceMoveMs(), now);
         // 暗棋翻面
         mark(d, a.flipRow, a.flipCol, cols, a.flipMs + g.pieceFlipMs(), now);
+        // 飞行棋骰子翻滚：中央格交还给渲染器逐帧画
+        if (g instanceof FlightChessLogic) {
+            mark(d, FlightChessLogic.DICE_CELL / cols, FlightChessLogic.DICE_CELL % cols,
+                    cols, a.rollMs + DICE_ROLL_MS, now);
+        }
         // 连五胜利：整条连线一起动
         if (a.winCells != null && a.winMs + WIN_ANIM_MS > now) {
             long until = a.winMs + WIN_ANIM_MS;

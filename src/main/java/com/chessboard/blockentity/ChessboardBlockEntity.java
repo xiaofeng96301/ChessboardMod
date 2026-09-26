@@ -103,6 +103,8 @@ public class ChessboardBlockEntity extends BlockEntity {
         switch (r) {
             case ClickResult.Select(int rw, int cl) -> { selRow = rw; selCol = cl; }
             case ClickResult.Deselect() -> { selRow = -1; selCol = -1; }
+            // 掷骰：点数已由规则写进 pieces，不进历史（骰子不可悔）、不改选中
+            case ClickResult.Roll() -> {}
             case ClickResult.Move(int fr, int fc, int tr, int tc) -> {
                 history.push(new int[]{fr, fc, tr, tc, captured});
                 selRow = -1; selCol = -1;

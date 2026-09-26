@@ -6,6 +6,7 @@ import com.chessboard.block.ChessboardBlock;
 import com.chessboard.blockentity.ChessboardBlockEntity;
 import com.chessboard.game.BoardGameLogic;
 import com.chessboard.game.ChineseChessLogic;
+import com.chessboard.game.FlightChessLogic;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.QuadInstance;
 import com.mojang.math.Axis;
@@ -43,6 +44,9 @@ import java.util.List;
  * 会出现亮度跳变。
  */
 public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEntity, ChessboardRenderer.ChessboardRenderState> {
+
+    /** 骰子立方体模型里几何中心的 y（模型单位，立方体占 y 0..4） */
+    private static final float DICE_CENTER_Y = 2f;
 
     /** 与区块几何路径同一个光照器；懒创建 —— 它内部取线程本地的 AO 缓存，必须在实际使用线程上构造 */
     private BlockModelLighter lighter;
@@ -130,6 +134,8 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
         s.winT = a.winCells != null
                 ? Math.clamp((now - a.winMs) / (float) ChessboardAnimTracker.WIN_ANIM_MS, 0f, 1f)
                 : 1f;
+        // 飞行棋骰子翻滚进度（未掷过时 rollMs=0，这里自然收敛到 1 = 静止）
+        s.diceRollT = Math.clamp((now - a.rollMs) / (float) ChessboardAnimTracker.DICE_ROLL_MS, 0f, 1f);
     }
 
     @Override
@@ -206,16 +212,27 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
         }
     }
 
-    /** 绘制一颗棋子：圆片模型 + 其上的汉字贴图（汉字与棋子共用变换链，只是朝向按文字规则） */
+    /** 绘制一颗棋子：圆片模型 + 其上的汉字/图标贴图（与棋子共用变换链，只是朝向按文字规则） */
     private void renderPiece(PoseStack ps, SubmitNodeCollector cc, ChessboardRenderState s,
                              BlockAndTintGetter region, float wx, float wz, float lift,
                              int piece, float flipDeg, float winTilt) {
+        // 飞行棋骰子：翻滚 + 小跳。两整圈起步、缓出，结束时正好转回正立姿态，
+        // 所以静止时（diceRollT=1）这里的 720° 等价于不转。
+        float spinDeg = 0, hop = 0;
+        if (s.logic instanceof FlightChessLogic && FlightChessLogic.isDice(piece)) {
+            float t = s.diceRollT;
+            float ease = 1f - (1f - t) * (1f - t) * (1f - t);
+            spinDeg = 720f * ease;
+            hop = 0.02f * (float) Math.sin(t * Math.PI);
+        }
+        float y = lift + hop;
+
         submitModel(ps, cc, s, region, ChessboardPieceGeometry.stateFor(s.logic, piece, s.materials),
-                wx, wz, lift, piece, flipDeg, winTilt, false);
+                wx, wz, y, piece, flipDeg, winTilt, spinDeg, false);
 
         BlockState charState = ChessboardPieceGeometry.charStateFor(s.logic, piece);
         if (charState != null) {
-            submitModel(ps, cc, s, region, charState, wx, wz, lift, piece, flipDeg, winTilt, true);
+            submitModel(ps, cc, s, region, charState, wx, wz, y, piece, flipDeg, winTilt, spinDeg, true);
         }
     }
 
@@ -227,7 +244,7 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
     private void submitModel(PoseStack ps, SubmitNodeCollector cc, ChessboardRenderState s,
                              BlockAndTintGetter region, BlockState state,
                              float wx, float wz, float lift,
-                             int piece, float flipDeg, float winTilt, boolean textRotation) {
+                             int piece, float flipDeg, float winTilt, float spinDeg, boolean textRotation) {
         float y = s.logic.pieceHeight() + lift;
         float cx = s.logic.pieceCenterX() / 16f, cz = s.logic.pieceCenterZ() / 16f;
         float sc = s.logic.pieceScale();
@@ -244,6 +261,13 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
         if (ry != 0) ps.mulPose(Axis.YP.rotationDegrees(ry));
         ps.scale(sc, sc, sc);
         ps.translate(-cx, 0, -cz);
+        if (spinDeg != 0) {
+            // 骰子立方体在模型里占 y 0..4，此时它的几何中心落在 (0, 2, 0)，
+            // 绕这一点转才是原地翻滚（绕原点会甩出去）
+            ps.translate(0, DICE_CENTER_Y, 0);
+            ps.mulPose(Axis.XP.rotationDegrees(spinDeg));
+            ps.translate(0, -DICE_CENTER_Y, 0);
+        }
 
         BlockStateModelSet set = models();
         if (set == null) {
@@ -276,6 +300,8 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
         public float flipT = 1f;
         public int[] winCells;
         public float winT = 1f;
+        /** 飞行棋骰子翻滚进度 0..1（1 = 静止） */
+        public float diceRollT = 1f;
         /** 超出渲染距离，本帧不画（见 Config#BOARD_RENDER_DISTANCE） */
         public boolean tooFar;
     }

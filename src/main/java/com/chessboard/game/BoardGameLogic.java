@@ -41,6 +41,16 @@ public interface BoardGameLogic {
      */
     default boolean pieceFollowsTextRotation() { return false; }
 
+    /**
+     * 文字/图标层是否按阵营翻转 180°。
+     * 中国象棋的简繁字需要按方翻转；飞行棋四队共用一个飞机图标，必须朝向一致，
+     * 所以那边覆写为 false —— 否则三支队伍的飞机头会朝反方向。
+     */
+    default boolean flipOverlayBySide() { return true; }
+
+    /** 该格是否禁止落子/走子（飞行棋中央的骰子格）。返回 true 时点击不产生任何棋子移动 */
+    default boolean isBlocked(int row, int col) { return false; }
+
     /** 模型中心 X 偏移（像素/16），默认 2.5 */
     default float pieceCenterX() { return 2.5f; }
     /** 模型中心 Z 偏移（像素/16），默认 2.5 */
@@ -137,6 +147,8 @@ public interface BoardGameLogic {
      * 中国象棋/国际象棋共用；中国象棋需先处理暗棋翻面再调用。
      */
     default ClickResult onClickMove(int[] pieces, int selRow, int selCol, int clickRow, int clickCol) {
+        // 禁区（飞行棋中央的骰子格）：既不能选也不能落子
+        if (isBlocked(clickRow, clickCol)) return new ClickResult.None();
         int cp = pieces[idx(clickRow, clickCol)];
         if (selRow < 0) {
             return cp != 0 ? new ClickResult.Select(clickRow, clickCol) : new ClickResult.None();
@@ -161,7 +173,7 @@ public interface BoardGameLogic {
 
     // ── 结果类型 ──
 
-    sealed interface ClickResult permits ClickResult.None, ClickResult.Select, ClickResult.Deselect, ClickResult.Move, ClickResult.Place, ClickResult.Flip {
+    sealed interface ClickResult permits ClickResult.None, ClickResult.Select, ClickResult.Deselect, ClickResult.Move, ClickResult.Place, ClickResult.Flip, ClickResult.Roll {
         /** 无效点击，没有任何变化 */
         record None() implements ClickResult {}
 
@@ -170,6 +182,12 @@ public interface BoardGameLogic {
 
         /** 放下了已抬起的棋子（再次点击同一格）。位置由调用方自己的 selRow/selCol 可知，故不携带 */
         record Deselect() implements ClickResult {}
+
+        /**
+         * 掷了骰子（飞行棋中央格）。新点数已由规则自己写进 pieces，本结果只用来告诉
+         * 方块实体「刚发生了掷骰」，不产生走棋历史、也不改变选中。
+         */
+        record Roll() implements ClickResult {}
 
         /** 棋子从 (fromRow, fromCol) 移动到 (toRow, toCol)，覆盖了 captured 棋子 */
         record Move(int fromRow, int fromCol, int toRow, int toCol) implements ClickResult {}

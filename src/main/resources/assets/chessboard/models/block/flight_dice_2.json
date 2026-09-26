@@ -1,0 +1,76 @@
+{
+  "textures": {
+    "dice": "chessboard:block/flight_dice",
+    "particle": "chessboard:block/flight_dice"
+  },
+  "elements": [
+    {
+      "from": [
+        0.5,
+        0,
+        0.5
+      ],
+      "to": [
+        4.5,
+        4,
+        4.5
+      ],
+      "faces": {
+        "up": {
+          "uv": [
+            4.0,
+            0.0,
+            8.0,
+            4.0
+          ],
+          "texture": "#dice"
+        },
+        "down": {
+          "uv": [
+            4.0,
+            4.0,
+            8.0,
+            8.0
+          ],
+          "texture": "#dice"
+        },
+        "north": {
+          "uv": [
+            8.0,
+            4.0,
+            12.0,
+            8.0
+          ],
+          "texture": "#dice"
+        },
+        "south": {
+          "uv": [
+            0.0,
+            0.0,
+            4.0,
+            4.0
+          ],
+          "texture": "#dice"
+        },
+        "east": {
+          "uv": [
+            8.0,
+            0.0,
+            12.0,
+            4.0
+          ],
+          "texture": "#dice"
+        },
+        "west": {
+          "uv": [
+            0.0,
+            4.0,
+            4.0,
+            8.0
+          ],
+          "texture": "#dice"
+        }
+      }
+    }
+  ]
+}
