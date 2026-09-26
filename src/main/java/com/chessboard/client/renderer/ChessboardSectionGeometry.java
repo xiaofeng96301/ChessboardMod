@@ -1,5 +1,6 @@
 package com.chessboard.client.renderer;
 
+import com.chessboard.ChessboardMod;
 import com.chessboard.SkinData;
 import com.chessboard.block.ChessboardBlock;
 import com.chessboard.blockentity.ChessboardBlockEntity;
@@ -22,6 +23,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * 把静止的棋子烘焙进区块几何（性能优化核心）。
@@ -40,6 +42,27 @@ import java.util.Map;
  * 世界数据只能在处理器里读取并拷成快照，renderer 里不得触碰 Level / 方块实体。
  */
 public final class ChessboardSectionGeometry {
+
+    /**
+     * 一个区块里最多为<b>棋子</b>发多少个四边形，超了就只画棋盘、不画棋子。
+     *
+     * <p>这是<b>防崩闸门</b>，不是性能优化。26.3 把区块顶点上传换成了
+     * {@code UberGpuBuffer} + {@code StagingBuffer}，而 {@code StagingBuffer.tryAppend} 里是
+     * {@code if (size > capacity) throw new IllegalArgumentException(...)} —— <b>硬崩，不降级</b>。
+     * 那个 staging buffer 固定 98 MiB（102,760,448），而且卡的是
+     * <b>「一个区块 × 一个渲染层」的单次追加</b>，不是整场累计。
+     *
+     * <p>数字是实地标定的：铺 2500 块满员国际象棋（50×50）时，一个区块里 100 多块棋盘就发出了
+     * 112 MiB（117,497,856），约合 <b>133 字节/四边形</b>。98 MiB 全填满是 ~772k 四边形，
+     * 这里只吃四分之一，其余留给原版地形、棋盘本体和其它 mod。
+     *
+     * <p>只统计棋子：棋盘本体的模型才几十个面，永远画得起；爆量的从来是棋子
+     * （一块满员国际象棋 = 32 颗 × 上百个面，再加汉字层）。
+     */
+    private static final int PIECE_QUAD_BUDGET = 200_000;
+
+    /** 降级告警只发一次，别每个区块刷屏 */
+    private static final AtomicBoolean BUDGET_WARNED = new AtomicBoolean();
 
     private ChessboardSectionGeometry() {}
 
@@ -90,7 +113,8 @@ public final class ChessboardSectionGeometry {
         for (ChessboardBlockEntity board : boards) snaps.add(snapshot(board, origin, models));
 
         final List<BoardGeometrySnapshot> list = snaps;
-        event.addRenderer(ctx -> emit(ctx, list, models));
+        final BlockPos sectionOrigin = origin;
+        event.addRenderer(ctx -> emit(ctx, sectionOrigin, list, models));
     }
 
     /** 主线程：把棋盘状态拷贝成 worker 线程可安全只读的快照 */
@@ -129,9 +153,12 @@ public final class ChessboardSectionGeometry {
     }
 
     /** worker 线程：把静止棋子发射进区块顶点缓冲 */
-    private static void emit(AddSectionGeometryEvent.SectionRenderingContext ctx,
+    private static void emit(AddSectionGeometryEvent.SectionRenderingContext ctx, BlockPos sectionOrigin,
                              List<BoardGeometrySnapshot> snaps, BlockStateModelSet models) {
         float[] pos = new float[2];
+        // 预算按整个区块算（不是按棋盘）：上限卡的就是「一个区块」的顶点数据量
+        int pieceQuads = 0;
+        int degraded = 0;
 
         for (BoardGeometrySnapshot s : snaps) {
             BoardGameLogic g = s.logic();
@@ -140,8 +167,13 @@ public final class ChessboardSectionGeometry {
             // 每块棋盘一个上下文：内含原版光照器（逐顶点光照 + 面朝向明暗）
             var ec = new ChessboardPieceGeometry.EmitContext(ctx, models, s.boardPos(),
                     s.offset().getX(), s.offset().getY(), s.offset().getZ());
-            // 棋盘本体的皮肤：只在设过皮肤时才多发射一层，没设的棋盘一个顶点都不多画
+            // 棋盘本体先画，且不计入预算 —— 一个棋盘模型才几十个面，爆量的从来是棋子。
+            // 先画它还有个好处：预算用完时棋盘是完整的，缺的只是棋子。
             ChessboardPieceGeometry.emitBoardSkin(ec, s.boardState(), skins[SkinData.SLOT_BOARD]);
+            if (pieceQuads >= PIECE_QUAD_BUDGET) {
+                degraded++;
+                continue; // 见 PIECE_QUAD_BUDGET：宁可这块棋盘空着，也不能让区块顶点超上限崩游戏
+            }
             for (int row = 0; row < g.rows(); row++) {
                 for (int col = 0; col < cols; col++) {
                     int cell = row * cols + col;
@@ -161,6 +193,15 @@ public final class ChessboardSectionGeometry {
                     }
                 }
             }
+            pieceQuads += ec.pieceQuads;
+        }
+
+        if (degraded > 0 && BUDGET_WARNED.compareAndSet(false, true)) {
+            // 只报一次：这是「玩家造得太大」的提示，不是每帧错误，刷屏没意义
+            ChessboardMod.LOGGER.warn(
+                    "区块 {} 里的棋盘太多，几何量会超过原版顶点缓冲上限；已降级为只画棋盘、不画棋子（本次跳过 {} 块）。"
+                            + "要恢复显示请把棋盘铺稀一些。",
+                    sectionOrigin, degraded);
         }
     }
 }

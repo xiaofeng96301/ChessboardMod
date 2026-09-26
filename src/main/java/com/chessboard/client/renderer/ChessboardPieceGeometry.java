@@ -36,6 +36,8 @@ import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.block.state.BlockState;
 import net.neoforged.neoforge.client.event.AddSectionGeometryEvent.SectionRenderingContext;
 import net.neoforged.neoforge.client.model.ao.EnhancedBlockModelLighter;
+import org.joml.Matrix4f;
+import org.joml.Quaternionfc;
 
 import java.util.List;
 
@@ -59,6 +61,26 @@ public final class ChessboardPieceGeometry {
             case EAST -> text ? -90 : 90;
             default -> 0;
         };
+    }
+
+    /**
+     * 按四元数旋转 —— <b>全项目只用这一个入口，不要直接调 {@code PoseStack} 的那几个重载</b>。
+     *
+     * <p>26.1.2 和 26.3 在这件事上的方法名对不上，直接写哪个都会炸掉一边：
+     * <ul>
+     *   <li>{@code mulPose(Quaternionfc)} —— 26.1.2 有，<b>26.3 删了</b>。写它会编过但在 26.3 上
+     *       运行期 {@code NoSuchMethodError}（2026-09-26 那次区块构建线程崩溃就是这个）；</li>
+     *   <li>{@code rotate(Quaternionfc)} —— 26.3 的新名字，26.1.2 <b>根本没有</b>，写它 26.1.2 编不过；</li>
+     *   <li>{@code mulPose(Matrix4fc)} / {@code rotateAround(...)} —— 两版都在，所以走这条。</li>
+     * </ul>
+     *
+     * <p>{@code Axis.rotationDegrees(f)} 返回的是 {@code Quaternionf}，这里自己把它转成矩阵再乘。
+     * {@code new Matrix4f().rotation(q)} 得到的就是 q 的旋转矩阵，{@code pose.mul(matrix)} 与
+     * 直接 {@code pose.rotate(q)} 数学上完全等价，只是多一次矩阵构造（每次区块重建几百次，可忽略）。
+     */
+    public static void rotateBy(PoseStack ps, Quaternionfc q) {
+        // 这里必须是 mulPose：两版都有的那个重载。别再把它「统一」成 rotateBy，那是自我递归
+        ps.mulPose(new Matrix4f().rotation(q));
     }
 
     /** 棋盘行列 → 方块内局部坐标（写入 out，避免每格分配数组） */
@@ -366,6 +388,14 @@ public final class ChessboardPieceGeometry {
         final float ox, oy, oz;
         /** 诊断用：皮肤发射时遇到多少个没有面方向的四边形（正常应为 0） */
         int nullDir;
+        /**
+         * 这块棋盘已经为<b>棋子</b>发了多少个四边形（棋盘本体不算）。
+         *
+         * <p>只给 {@code ChessboardSectionGeometry} 的预算降级用：一个区块里棋盘太多时，
+         * 几何量会超过原版顶点缓冲的容量上限（26.3 是硬崩）。按四边形数计最省事 ——
+         * 发之前就知道 {@code quads.size()}，不用改 {@code putQuad}。
+         */
+        int pieceQuads;
 
         public EmitContext(SectionRenderingContext ctx, BlockStateModelSet models,
                            BlockPos boardPos, float ox, float oy, float oz) {
@@ -395,11 +425,11 @@ public final class ChessboardPieceGeometry {
         boolean textLike = textRotation || g.pieceFollowsTextRotation();
         ps.pushPose();
         ps.translate(ec.ox + wx, ec.oy + g.pieceHeight(), ec.oz + wz);
-        ps.mulPose(Axis.YP.rotationDegrees(facingDegrees(facing, textLike)));
-        if (textLike && g.flipOverlayBySide() && g.side(piece) != 0) ps.mulPose(Axis.YP.rotationDegrees(180));
-        if (g.pieceFlipX(piece)) ps.mulPose(Axis.XP.rotationDegrees(180));
+        rotateBy(ps, Axis.YP.rotationDegrees(facingDegrees(facing, textLike)));
+        if (textLike && g.flipOverlayBySide() && g.side(piece) != 0) rotateBy(ps, Axis.YP.rotationDegrees(180));
+        if (g.pieceFlipX(piece)) rotateBy(ps, Axis.XP.rotationDegrees(180));
         float ry = g.pieceYRotation(piece);
-        if (ry != 0) ps.mulPose(Axis.YP.rotationDegrees(ry));
+        if (ry != 0) rotateBy(ps, Axis.YP.rotationDegrees(ry));
         ps.scale(sc, sc, sc);
         ps.translate(-cx, 0, -cz);
 
@@ -413,6 +443,7 @@ public final class ChessboardPieceGeometry {
             for (Direction d : DIRECTIONS) {
                 List<BakedQuad> quads = part.getQuads(d);
                 if (quads.isEmpty()) continue;
+                ec.pieceQuads += quads.size(); // 预算降级用，见 EmitContext#pieceQuads
                 int lightCoords = ec.lighter.getLightCoords(state, ec.region, ec.boardPos.relative(d));
                 for (BakedQuad q : quads) {
                     putQuad(ec.ctx.getOrCreateChunkBuffer(q.materialInfo().layer()),
@@ -420,7 +451,9 @@ public final class ChessboardPieceGeometry {
                 }
             }
             // 无方向（不参与面剔除）的四边形
-            for (BakedQuad q : part.getQuads(null)) {
+            List<BakedQuad> noDir = part.getQuads(null);
+            ec.pieceQuads += noDir.size();
+            for (BakedQuad q : noDir) {
                 putQuad(ec.ctx.getOrCreateChunkBuffer(q.materialInfo().layer()),
                         ec.region, ec.boardPos, state, ec.lighter, q, -1, ec.qi, pose, skin, 0);
             }

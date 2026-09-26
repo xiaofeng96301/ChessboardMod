@@ -285,20 +285,20 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
         boolean textLike = textRotation || s.logic.pieceFollowsTextRotation();
         ps.pushPose();
         ps.translate(wx, y, wz);
-        ps.mulPose(Axis.YP.rotationDegrees(ChessboardPieceGeometry.facingDegrees(s.facing, textLike)));
-        if (textLike && s.logic.side(piece) != 0) ps.mulPose(Axis.YP.rotationDegrees(180));
-        if (winTilt != 0) ps.mulPose(Axis.ZP.rotationDegrees(winTilt)); // 胜利左右歪动，绕底部中心
-        if (flipDeg != 0) ps.mulPose(Axis.XP.rotationDegrees(flipDeg));
-        if (s.logic.pieceFlipX(piece)) ps.mulPose(Axis.XP.rotationDegrees(180));
+        ChessboardPieceGeometry.rotateBy(ps, Axis.YP.rotationDegrees(ChessboardPieceGeometry.facingDegrees(s.facing, textLike)));
+        if (textLike && s.logic.side(piece) != 0) ChessboardPieceGeometry.rotateBy(ps, Axis.YP.rotationDegrees(180));
+        if (winTilt != 0) ChessboardPieceGeometry.rotateBy(ps, Axis.ZP.rotationDegrees(winTilt)); // 胜利左右歪动，绕底部中心
+        if (flipDeg != 0) ChessboardPieceGeometry.rotateBy(ps, Axis.XP.rotationDegrees(flipDeg));
+        if (s.logic.pieceFlipX(piece)) ChessboardPieceGeometry.rotateBy(ps, Axis.XP.rotationDegrees(180));
         float ry = s.logic.pieceYRotation(piece);
-        if (ry != 0) ps.mulPose(Axis.YP.rotationDegrees(ry));
+        if (ry != 0) ChessboardPieceGeometry.rotateBy(ps, Axis.YP.rotationDegrees(ry));
         ps.scale(sc, sc, sc);
         ps.translate(-cx, 0, -cz);
         if (spinDeg != 0) {
             // 骰子立方体在模型里占 y 0..4，此时它的几何中心落在 (0, 2, 0)，
             // 绕这一点转才是原地翻滚（绕原点会甩出去）
             ps.translate(0, DICE_CENTER_Y, 0);
-            ps.mulPose(Axis.XP.rotationDegrees(spinDeg));
+            ChessboardPieceGeometry.rotateBy(ps, Axis.XP.rotationDegrees(spinDeg));
             ps.translate(0, -DICE_CENTER_Y, 0);
         }
 
