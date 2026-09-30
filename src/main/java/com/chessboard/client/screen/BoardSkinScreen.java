@@ -6,6 +6,7 @@ import com.chessboard.blockentity.ChessboardBlockEntity;
 import com.chessboard.game.BoardGameLogic;
 import com.chessboard.game.ChessLogic;
 import com.chessboard.game.ChineseChessLogic;
+import com.chessboard.game.FlightChessLogic;
 import com.chessboard.game.GomokuLogic;
 import com.chessboard.menu.BoardSkinMenu;
 import net.minecraft.client.Minecraft;
@@ -141,6 +142,10 @@ public class BoardSkinScreen extends AbstractContainerScreen<BoardSkinMenu> {
         if (isGomokuBoard()) {
             openActions.add(new String[]{"随机开局", "randomstart"});
         }
+        if (isFlightChessBoard()) {
+            // 两种开局都是「重置 + 设定规则模式」：默认开局吃子回机库，和平开局异阵营堆叠共存
+            openActions.add(new String[]{"和平开局", "peacefulstart"});
+        }
         for (int i = 0; i < openActions.size(); i++) {
             String[] act = openActions.get(i);
             Button opt = Button.builder(Component.literal(act[0]), b -> {
@@ -260,6 +265,7 @@ public class BoardSkinScreen extends AbstractContainerScreen<BoardSkinMenu> {
     private boolean isChineseChessBoard() { return isBoard(ChineseChessLogic.class); }
     private boolean isGomokuBoard() { return isBoard(GomokuLogic.class); }
     private boolean isChessBoard() { return isBoard(ChessLogic.class); }
+    private boolean isFlightChessBoard() { return isBoard(FlightChessLogic.class); }
 
     private String getCurrentCode() {
         if (minecraft == null || minecraft.level == null) return "";

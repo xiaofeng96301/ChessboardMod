@@ -88,14 +88,84 @@ public final class ChessboardPieceGeometry {
         ps.mulPose(new Matrix4f().rotation(q));
     }
 
+    /** 堆叠时每层抬高几个「棋子自己的贴图像素」 */
+    public static final float STACK_PIXELS = 1f;
+
+    /**
+     * 堆叠在同一个格子里的第 index 颗棋子额外要抬多高（格）。
+     *
+     * <p><b>按棋子自己的贴图像素算</b>：模型是 16 单位 = 1 格，渲染时整体缩放 {@code pieceScale()}，
+     * 所以「1 个棋子像素」在棋盘空间里是 {@code pieceScale()/16} 格。
+     * 早先用的是固定的 1/16 格（= 棋盘贴图 1 像素），在飞行棋上等于每层抬高<b>整整一个格子</b>
+     * ——那边格子只有 1 像素宽、棋子也就 1 像素高，叠起来是一级级跳开而不是一摞。
+     *
+     * <p><b>只往竖里垒，不做横向错开。</b>飞行棋格距只有 1 像素、棋子本身约 1 像素宽，
+     * 横向没有余量；而且横向偏移还得先转成棋盘的局部朝向 —— {@link #gridPos} 里已经按 facing
+     * 旋转过一次，在它的输出上直接加世界轴偏移，WEST/NORTH 朝向会朝错误方向错位。竖高与朝向无关。
+     *
+     * <p>两条渲染路径（静态烘焙 / 动态渲染器）必须都用这一个函数，否则动画结束交还几何时会跳一下。
+     */
+    public static float stackLift(BoardGameLogic g, int index) {
+        return index <= 0 ? 0f : index * STACK_PIXELS * g.pieceScale() / 16f;
+    }
+
+    // ── 棋子模型的尺寸与几何中心 ──
+    //
+    // 两条渲染路径都要用这一组函数算缩放和中心，别各写一份（写岔了就是动画结束时跳一下，
+    // 或者轴心跑到模型外面去）。
+
+    /**
+     * 骰子用的是<b>满方块</b>模型（0..16），要缩回小立方体的大小 —— 4/16。
+     *
+     * <p>满方块是故意的：它的几何中心就是方块正中 {@code (0.5, 0.5, 0.5)}，旋转轴心直接取这个数。
+     * 原来模型是角落里 4 单位见方的小立方体（中心 {@code (2.5, 2, 2.5)}），轴心得由几个换算过的
+     * 常数拼出来，漏一个就变成绕骰子外面的点公转 —— 这个坑踩过。
+     */
+    private static final float DICE_MODEL_SCALE = 4f / 16f;
+
+    /** 满方块模型的几何中心（方块空间） */
+    public static final float FULL_BLOCK_CENTER = 0.5f;
+
+    /** 这颗棋子是不是「满方块」模型（目前只有飞行棋的骰子） */
+    public static boolean isFullBlockModel(BoardGameLogic g, int piece) {
+        return g instanceof FlightChessLogic && FlightChessLogic.isDice(piece);
+    }
+
+    /** 棋子模型的缩放倍率 */
+    public static float modelScale(BoardGameLogic g, int piece) {
+        return g.pieceScale() * (isFullBlockModel(g, piece) ? DICE_MODEL_SCALE : 1f);
+    }
+
+    /**
+     * 棋子模型几何中心的 x / y / z（<b>方块空间</b>）。
+     *
+     * <p>普通棋子由棋类自报（{@code pieceCenterX()/16f}，模型画在方块的一角）；
+     * 满方块模型就是 0.5。y 只有会自转的骰子用得上，其余棋子不会绕自身中心转。
+     */
+    public static float modelCenterX(BoardGameLogic g, int piece) {
+        return isFullBlockModel(g, piece) ? FULL_BLOCK_CENTER : g.pieceCenterX() / 16f;
+    }
+
+    public static float modelCenterY(BoardGameLogic g, int piece) {
+        return isFullBlockModel(g, piece) ? FULL_BLOCK_CENTER : 0f;
+    }
+
+    public static float modelCenterZ(BoardGameLogic g, int piece) {
+        return isFullBlockModel(g, piece) ? FULL_BLOCK_CENTER : g.pieceCenterZ() / 16f;
+    }
+
     /** 棋盘行列 → 方块内局部坐标（写入 out，避免每格分配数组） */
     public static void gridPos(BoardGameLogic g, Direction facing, int row, int col, float[] out) {
         float gx = g.colPixel(col) / 16f;
         float gz = g.rowPixel(row) / 16f;
+        // 旋转量必须和 blockstate 里模型的 y 值一致 —— 判据来自 vanilla 字节码：
+        //   BLOCK_ROT_Y_90 = ROT_90_Y_NEG（即 (X,Z) → (-Z, X)），BLOCK_ROT_Y_270 = ROT_90_Y_POS（(Z, -X)）。
+        // 两者写反的话，朝西/朝东摆的棋盘上棋子会整体转 90° 落在错格上（朝南恒等、朝北 180°，
+        // 这两个方向看不出问题），点击换算也跟着错 —— 一定要和 ChessboardBlock#worldToModel 成对改。
         switch (facing) {
-            case WEST -> { out[0] = gz; out[1] = 1 - gx; }
+            case WEST -> { out[0] = 1 - gz; out[1] = gx; }
             case NORTH -> { out[0] = 1 - gx; out[1] = 1 - gz; }
-            case EAST -> { out[0] = 1 - gz; out[1] = gx; }
+            case EAST -> { out[0] = gz; out[1] = 1 - gx; }
             default -> { out[0] = gx; out[1] = gz; }
         }
     }
@@ -531,14 +601,21 @@ public final class ChessboardPieceGeometry {
     public static void emitPiece(EmitContext ec, BlockState state, float wx, float wz,
                                  BoardGameLogic g, Direction facing, int piece, boolean textRotation,
                                  TextureAtlasSprite skin) {
-        float cx = g.pieceCenterX() / 16f, cz = g.pieceCenterZ() / 16f;
-        float sc = g.pieceScale();
+        emitPiece(ec, state, wx, wz, 0f, g, facing, piece, textRotation, skin);
+    }
+
+    /** 同上，但整颗再抬高 {@code extraLift} 格 —— 堆叠的层次用它（见 {@link #stackLift}） */
+    public static void emitPiece(EmitContext ec, BlockState state, float wx, float wz, float extraLift,
+                                 BoardGameLogic g, Direction facing, int piece, boolean textRotation,
+                                 TextureAtlasSprite skin) {
+        float cx = modelCenterX(g, piece), cz = modelCenterZ(g, piece);
+        float sc = modelScale(g, piece);
         PoseStack ps = ec.ps;
 
         // 圆片类棋子的朝向跟随文字（含阵营翻转），保证棋子和自己的汉字完全对齐
         boolean textLike = textRotation || g.pieceFollowsTextRotation();
         ps.pushPose();
-        ps.translate(ec.ox + wx, ec.oy + g.pieceHeight(), ec.oz + wz);
+        ps.translate(ec.ox + wx, ec.oy + g.pieceHeight() + extraLift, ec.oz + wz);
         rotateBy(ps, Axis.YP.rotationDegrees(facingDegrees(facing, textLike)));
         if (textLike && g.flipOverlayBySide() && g.side(piece) != 0) rotateBy(ps, Axis.YP.rotationDegrees(180));
         if (g.pieceFlipX(piece)) rotateBy(ps, Axis.XP.rotationDegrees(180));

@@ -22,10 +22,14 @@
   无框棋盘（board_frameless.json）把 uv 缩到 0.375..15.625、模型缩到 15×15，
   两者正好抵消 —— 所以同一张纹理在两种框型下格点位置完全一致，不用画两份。
 """
+import hashlib
 import json
 import math
 import os
 import random
+import shutil
+import sys
+import time
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFilter
@@ -40,8 +44,22 @@ BOARD = "flight_chess_board"
 TEX = 256            # 棋盘纹理边长
 SS = 4               # 超采样倍数（PIL 的矩形不抗锯齿，先画大再缩）
 
-# 环路上的循环色序（每 2 格一换，铺出成块的彩色跑道）
-RING_COLORS = ["green", "red", "blue", "yellow"]
+# 四队颜色。这几个值是**从已发布的棋盘贴图里量出来的**（采样风车叶片内部，
+# 四色各约 2800 像素、是图里第 3~6 多的纯色，可以确认就是填充色本身）——
+# 这个常量一度从脚本里丢了，脚本因此跑不起来（NameError: TEAM_RGB）。
+# 要改配色请连着贴图一起重新生成，别只改这里。
+TEAM_RGB = {
+    "red": (142, 33, 33),
+    "yellow": (240, 175, 21),
+    "blue": (44, 46, 143),
+    "green": (94, 124, 22),
+}
+
+# 环路上的循环色序：**一格一色**，红→蓝→黄→绿 沿环路（顺时针）循环。
+# 顺序不能随便定：四条跑道把环路分成 4 段各 13 格，13 % 4 == 1，所以色序必须跟着
+# 四臂的顺时针顺序走（上红 → 右蓝 → 下黄 → 左绿），四个接口才都能接上本臂的颜色。
+# 起点由 ring_start_index 锚在红色跑道外侧那一格上（见那里的说明）。
+RING_COLORS = ["red", "blue", "yellow", "green"]
 
 # ── 布局来自 tools/flight_layout.txt，改那个文件即可 ──
 
@@ -170,7 +188,36 @@ SIZE, RING, CENTER_CELLS, DICE_CELL, RUNWAYS, HANGAR_CELLS = load_layout()
 # 每格 texel 数：格距 = gridSpan/(SIZE-1) 模型像素，再乘 TEX/16
 CELL = (TEX / 16.0) * (14.0 / (SIZE - 1))
 
-RING_COLOR = {cell: RING_COLORS[(i // 2) % 4] for i, cell in enumerate(RING)}
+
+def ring_start_index(order):
+    """环路色序从哪一格开始 —— 红色跑道最外侧那格的**正外侧**。
+
+    这样红色车道一路延伸到环路上的那一格，和十字上方的红接得上。不能像原来那样
+    直接拿 `_order_ring` 的第一格（它是行列扫描顺序里最小的格子，固定在左上角），
+    否则色序的相位就跟着扫描顺序漂，看着像随便挑了个地方起头。
+    """
+    red_arm = next(arm for arm, team in RUNWAY_TEAM.items() if team == "red")
+    cells = RUNWAYS[red_arm]
+    cy = sum(r for r, _ in CENTER_CELLS) / len(CENTER_CELLS)
+    cx = sum(c for _, c in CENTER_CELLS) / len(CENTER_CELLS)
+    far = lambda rc: (rc[0] - cy) ** 2 + (rc[1] - cx) ** 2      # noqa: E731
+    outer, inner = max(cells, key=far), min(cells, key=far)
+    # 沿跑道轴向朝外走：这条臂只在一个方向上延伸，那一位就是轴向
+    dr = (outer[0] > inner[0]) - (outer[0] < inner[0])
+    dc = (outer[1] > inner[1]) - (outer[1] < inner[1])
+    ring = set(RING)
+    cur = outer
+    for _ in range(len(RING)):
+        cur = (cur[0] + dr, cur[1] + dc)
+        if cur in ring:
+            return order.index(cur)
+    raise SystemExit(f"红色跑道最外侧 {outer} 再往外没走到环路格，色序起点定不下来")
+
+
+# 外圈：一格一色，从红跑道外侧那格起沿环路（顺时针）红→蓝→黄→绿 循环
+RING_PHASE = ring_start_index(RING)
+RING_COLOR = {cell: RING_COLORS[(i - RING_PHASE) % len(RING_COLORS)]
+              for i, cell in enumerate(RING)}
 
 
 def runway_cells(arm):
@@ -231,8 +278,39 @@ def cell_box(r, c, shrink=0.0):
     return (cx - h, cy - h, cx + h, cy + h)
 
 
+# ── 棋盘贴图的保护闸门 ──
+#
+# 这张贴图已经被作者**手工重画**过，而且没有别的副本 —— 本脚本默认拒绝覆盖它。
+# 判据：磁盘上的文件和 tools/flight_chess_board.sha256（脚本上次写出的指纹）一致，
+# 才算「脚本自己的产物」，可以放心重写；不一致就跳过，只提醒。
+# 确实要重新生成：加 --force-board，脚本会先把当前文件备份到 tools/backup/ 再写。
+BOARD_TEX = ASSETS / "textures/block" / f"{BOARD}.png"
+BOARD_TEX_SHA = ROOT / "tools" / f"{BOARD}.sha256"
+BACKUP_DIR = ROOT / "tools" / "backup"
+
+
+def save_board_texture(img):
+    """写棋盘贴图；手工改过的版本默认不覆盖（理由见上）"""
+    force = "--force-board" in sys.argv
+    known = BOARD_TEX_SHA.read_text(encoding="utf-8").strip() if BOARD_TEX_SHA.exists() else ""
+    cur = hashlib.sha256(BOARD_TEX.read_bytes()).hexdigest() if BOARD_TEX.exists() else ""
+    if cur and cur != known:
+        if not force:
+            print(f"  !! 跳过 {BOARD_TEX.relative_to(ROOT)}：它的内容和本脚本上次写出的不一致，"
+                  f"多半是手工画的。要覆盖请加 --force-board（会先备份到 tools/backup/）。")
+            return
+        BACKUP_DIR.mkdir(parents=True, exist_ok=True)
+        bak = BACKUP_DIR / f"{BOARD}.{time.strftime('%Y%m%d-%H%M%S')}.png"
+        shutil.copy2(BOARD_TEX, bak)
+        print(f"  （覆盖前已把原文件备份到 {bak.relative_to(ROOT)}）")
+    BOARD_TEX.parent.mkdir(parents=True, exist_ok=True)
+    img.save(BOARD_TEX)
+    BOARD_TEX_SHA.write_text(hashlib.sha256(BOARD_TEX.read_bytes()).hexdigest() + "\n", encoding="utf-8")
+    print(f"  {BOARD_TEX.relative_to(ROOT)}")
+
+
 def draw_board():
-    """128×128 棋盘纹理"""
+    """TEX×TEX 的棋盘纹理"""
     S = TEX * SS
     k = SS
 
@@ -260,7 +338,7 @@ def draw_board():
     d = ImageDraw.Draw(img)
 
     def square(r, c, team):
-        """整格铺色 —— 不留白缝，同色才能连成一片（参考图就是成块的色块）"""
+        """整格铺色 —— 不留白缝，相邻同色自然连成一片"""
         d.rectangle(box(r, c), fill=TEAM_RGB[team])
 
     # ① 环路：沿布局文件标 # 的格子铺色（不勾边）
@@ -332,10 +410,7 @@ def draw_board():
     circle(dr, dc, CELL * 0.46, (250, 249, 245), (168, 162, 152), 0.8)
 
     img = img.resize((TEX, TEX), Image.LANCZOS)
-    out = ASSETS / "textures/block" / f"{BOARD}.png"
-    out.parent.mkdir(parents=True, exist_ok=True)
-    img.save(out)
-    print(f"  {out.relative_to(ROOT)}")
+    save_board_texture(img)
 
 
 def draw_icon():
@@ -487,8 +562,11 @@ def gen_piece_and_dice_assets():
     write_json(ASSETS / "blockstates/flight_icon.json",
                {"variants": {"": {"model": f"{MODID}:block/flight_icon"}}})
 
-    # 骰子：立方体占 y 0..4，x/z 0.5..4.5（几何中心 (2.5, 2, 2.5)）
-    # 与 ChessboardRenderer.DICE_CENTER_Y / 默认 pieceCenterX,Z 对应
+    # 骰子：故意做成**满方块**（0..16），几何中心就是方块正中 (0.5, 0.5, 0.5)。
+    # 原来画的是角落里 4 单位见方的小立方体（中心 (2.5, 2, 2.5)），旋转轴心得靠好几个
+    # 换算过的常数拼出来，错一个就变成绕骰子外面的点公转；满方块让轴心三个轴都是 0.5。
+    # 尺寸靠 ChessboardPieceGeometry 里的 DICE_MODEL_SCALE（4/16）缩回去，视觉大小不变；
+    # 面 UV 不用动 —— 4×4 的贴图块贴到 16 单位的大面上，再整体缩到 1/4，像素密度一样。
     dice_variants = {}
     for face in range(1, 7):
         north, east, south, west = DICE_SIDES[face]
@@ -502,8 +580,8 @@ def gen_piece_and_dice_assets():
                 "particle": f"{MODID}:block/flight_dice",
             },
             "elements": [{
-                "from": [0.5, 0, 0.5],
-                "to": [4.5, 4, 4.5],
+                "from": [0, 0, 0],
+                "to": [16, 16, 16],
                 "faces": {
                     "up":    {"uv": uv(face),  "texture": "#dice"},
                     "down":  {"uv": uv(down),  "texture": "#dice"},

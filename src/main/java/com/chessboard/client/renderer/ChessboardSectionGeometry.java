@@ -132,11 +132,16 @@ public final class ChessboardSectionGeometry {
         // 主线程预构建方块状态：worker 线程不碰注册表
         Map<Integer, BlockState> states = new HashMap<>();
         Map<Integer, BlockState> charStates = new HashMap<>();
-        for (int p : pieces) {
-            if (p == 0 || states.containsKey(p)) continue;
-            states.put(p, ChessboardPieceGeometry.stateFor(g, p));
-            BlockState cs = ChessboardPieceGeometry.charStateFor(g, p);
-            if (cs != null) charStates.put(p, cs);
+        // 表按「单颗棋子的值」建：飞行棋一格可能堆着好几颗（和平开局还允许混编），
+        // 发射时要按颗取值，所以这里先把每个格子展开一遍
+        for (int cellValue : pieces) {
+            for (int i = 0, c = g.occupancy(cellValue); i < c; i++) {
+                int p = g.pieceAt(cellValue, i);
+                if (p == 0 || states.containsKey(p)) continue;
+                states.put(p, ChessboardPieceGeometry.stateFor(g, p));
+                BlockState cs = ChessboardPieceGeometry.charStateFor(g, p);
+                if (cs != null) charStates.put(p, cs);
+            }
         }
         BlockPos bp = board.getBlockPos();
         BlockState boardState = board.getBlockState();
@@ -181,19 +186,25 @@ public final class ChessboardSectionGeometry {
             for (int row = 0; row < g.rows(); row++) {
                 for (int col = 0; col < cols; col++) {
                     int cell = row * cols + col;
-                    int piece = s.pieces()[cell];
-                    if (piece == 0 || s.excluded()[cell]) continue;
-                    BlockState state = s.states().get(piece);
-                    if (state == null) continue;
-                    // 每方各自一个皮肤槽，所以同一块棋盘上不同阵营的棋子贴图可以不一样
-                    int slot = SkinData.slotFor(g, piece);
-                    TextureAtlasSprite skin = slot >= 0 ? skins[slot] : null;
+                    int cellValue = s.pieces()[cell];
+                    if (cellValue == 0 || s.excluded()[cell]) continue;
                     ChessboardPieceGeometry.gridPos(g, s.facing(), row, col, pos);
-                    ChessboardPieceGeometry.emitPiece(ec, state, pos[0], pos[1], g, s.facing(), piece, false, skin);
-                    // 汉字：贴在棋子圆片上的第二层（本模组贴图，皮肤不会覆盖它）
-                    BlockState charState = s.charStates().get(piece);
-                    if (charState != null) {
-                        ChessboardPieceGeometry.emitPiece(ec, charState, pos[0], pos[1], g, s.facing(), piece, true, skin);
+                    // 一格可能堆着多颗（和平开局允许混编）：按颗发射，第 i 颗往上垒一层
+                    for (int i = 0, count = g.occupancy(cellValue); i < count; i++) {
+                        int piece = g.pieceAt(cellValue, i);
+                        if (piece == 0) continue;
+                        BlockState state = s.states().get(piece);
+                        if (state == null) continue;
+                        // 每方各自一个皮肤槽，所以同一块棋盘上不同阵营的棋子贴图可以不一样
+                        int slot = SkinData.slotFor(g, piece);
+                        TextureAtlasSprite skin = slot >= 0 ? skins[slot] : null;
+                        float lift = ChessboardPieceGeometry.stackLift(g, i);
+                        ChessboardPieceGeometry.emitPiece(ec, state, pos[0], pos[1], lift, g, s.facing(), piece, false, skin);
+                        // 汉字：贴在棋子圆片上的第二层（本模组贴图，皮肤不会覆盖它）
+                        BlockState charState = s.charStates().get(piece);
+                        if (charState != null) {
+                            ChessboardPieceGeometry.emitPiece(ec, charState, pos[0], pos[1], lift, g, s.facing(), piece, true, skin);
+                        }
                     }
                 }
             }

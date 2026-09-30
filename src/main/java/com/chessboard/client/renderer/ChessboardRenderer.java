@@ -48,8 +48,14 @@ import java.util.Map;
  */
 public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEntity, ChessboardRenderer.ChessboardRenderState> {
 
-    /** 骰子立方体模型里几何中心的 y（模型单位，立方体占 y 0..4） */
-    private static final float DICE_CENTER_Y = 2f;
+    /** 骰子翻滚圈数（绕自身 X 轴）：必须整圈，才能落回原姿态 */
+    private static final float DICE_ROLL_TURNS = 2f;
+    /** 翻滚时顺带歪一下的最大角（绕 Z）：纯单轴旋转太像机械转盘，歪一下才像被掷出去 */
+    private static final float DICE_LEAN_DEG = 30f;
+    /** 歪进去 / 回正的时刻（占整段动画的比例），回正要早于收尾 */
+    private static final float DICE_LEAN_IN = 0.25f, DICE_LEAN_OUT = 0.65f;
+    /** 抛起高度（格）与落地时刻：和缓出的翻滚同步，中段落地、落地后滑停 */
+    private static final float DICE_HOP = 0.04f, DICE_HOP_LAND = 0.7f;
 
     /** 与区块几何路径同一个光照器；懒创建 —— 它内部取线程本地的 AO 缓存，必须在实际使用线程上构造 */
     private BlockModelLighter lighter;
@@ -124,6 +130,7 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
         if (s.pieces == null || s.pieces.length != total) s.pieces = new int[total];
         System.arraycopy(entity.pieces(), 0, s.pieces, 0, total);
         s.selRow = entity.selRow();
+        s.selIdx = entity.selIdx();
         s.selCol = entity.selCol();
         s.rows = g.rows();
         s.cols = g.cols();
@@ -146,6 +153,7 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
             s.moveT = 1f; s.flipT = 1f; s.winT = 1f;
             s.unselRow = s.unselCol = -1;
             s.fromRow = s.fromCol = s.toRow = s.toCol = -1;
+            s.movePiece = 0;
             s.flipRow = s.flipCol = -1;
             s.winCells = null;
             return;
@@ -158,6 +166,7 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
         s.unselRow = a.unselRow; s.unselCol = a.unselCol;
         s.fromRow = a.fromRow; s.fromCol = a.fromCol;
         s.toRow = a.toRow; s.toCol = a.toCol;
+        s.movePiece = a.movePiece;
         s.flipRow = a.flipRow; s.flipCol = a.flipCol;
         s.flipT = Math.clamp((now - a.flipMs) / (float) g.pieceFlipMs(), 0f, 1f);
         s.winCells = a.winCells;
@@ -179,21 +188,15 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
         for (int row = 0; row < s.rows; row++) {
             for (int col = 0; col < s.cols; col++) {
                 int cell = row * s.cols + col;
-                int piece = s.pieces[cell];
-                if (piece == 0) continue;
-                // 飞行中的棋子由下方单独绘制
-                if (s.moveT < 1f && s.toRow == row && s.toCol == col) continue;
-                // 静止棋子在区块几何里，这里只画动画中的那几颗
+                int cellValue = s.pieces[cell];
+                if (cellValue == 0) continue;
+                // 正在飞向这一格的那一颗由下方单独绘制（见循环里的挖掘）
+                int flying = (s.moveT < 1f && s.toRow == row && s.toCol == col) ? s.movePiece : 0;
+                // 静止棋子在区块几何里，这里只画动画中的那几格
                 if (!ChessboardAnimTracker.INSTANCE.isDynamic(s.blockPos, cell)) continue;
 
                 boolean flipping = (s.flipRow == row && s.flipCol == col && s.flipT < 1f);
-                // 翻面前半程显示背面（暗棋）模型
-                int modelPiece = (flipping && s.flipT < 0.5f)
-                        ? ChineseChessLogic.hide(piece)
-                        : piece;
                 boolean sel = (s.selRow == row && s.selCol == col);
-                float lift = sel ? s.lift : 0;
-                if (s.unselRow == row && s.unselCol == col && s.unlift > 0 && lift == 0) lift = s.unlift;
 
                 // 连五胜利：微微跳起 + 左右倾斜晃动（逐个错峰；0~0.35 起跳 / 0.35~0.65 悬停歪动 / 0.65~1 回落）
                 float winJump = 0, winTilt = 0;
@@ -221,14 +224,33 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
 
                 ChessboardPieceGeometry.gridPos(s.logic, s.facing, row, col, scratch);
                 float flipDeg = flipping ? 180f * (1f - s.flipT) : 0;
-                renderPiece(ps, collector, s, region, scratch[0], scratch[1], lift + winJump,
-                        modelPiece, flipDeg, winTilt);
+                // 整叠都要画：动画期这一格从烘焙几何里被剔除了，只画第 0 颗的话一选中整叠就剩一颗。
+                // 被选中的那一颗额外抬高一点，否则看不出轮换选的是哪一队。
+                for (int i = 0, count = s.logic.occupancy(cellValue); i < count; i++) {
+                    int piece = s.logic.pieceAt(cellValue, i);
+                    if (piece == 0) continue;
+                    // 挖掉飞行中的那一颗（它在落点展开里的「最后一次」出现 —— 新落的那颗排在
+                    // 自己阵营那一组的末尾）。整格跳过是错的：落点往往还叠着同队的其它棋子，
+                    // 整格一藏它们就跟着消失；这一颗不挖又会「静止 + 飞行」画两遍。
+                    if (piece == flying && s.logic.pieceAt(cellValue, i + 1) != piece) continue;
+                    // 翻面前半程显示背面（暗棋）模型
+                    int modelPiece = (flipping && s.flipT < 0.5f)
+                            ? ChineseChessLogic.hide(piece)
+                            : piece;
+                    float lift = ChessboardPieceGeometry.stackLift(s.logic, i);
+                    if (sel && i == s.selIdx) lift += s.lift;
+                    if (!sel && s.unselRow == row && s.unselCol == col && s.unlift > 0) lift += s.unlift;
+                    renderPiece(ps, collector, s, region, scratch[0], scratch[1], lift + winJump,
+                            modelPiece, flipDeg, winTilt);
+                }
             }
         }
 
-        // 飞行中的棋子（起点已空、终点已从几何排除）
+        // 飞行中的棋子（起点已空或在下面等着，终点那一格已按颗挖掉它）
         if (s.moveT < 1f && s.fromRow >= 0 && s.toRow >= 0) {
-            int p = s.pieces[s.toRow * s.cols + s.toCol];
+            // 是哪一颗由 tracker 按「源格里少掉的那颗」判出来：堆叠里可能搬的是第 2 颗（蓝机），
+            // 不能再取落点的第 0 颗 —— 那会是叠得最低的另一队，飞错棋子
+            int p = s.movePiece;
             if (p != 0) {
                 float[] from = new float[2];
                 float[] to = new float[2];
@@ -246,26 +268,50 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
     private void renderPiece(PoseStack ps, SubmitNodeCollector cc, ChessboardRenderState s,
                              BlockAndTintGetter region, float wx, float wz, float lift,
                              int piece, float flipDeg, float winTilt) {
-        // 飞行棋骰子：翻滚 + 小跳。两整圈起步、缓出，结束时正好转回正立姿态，
-        // 所以静止时（diceRollT=1）这里的 720° 等价于不转。
-        float spinDeg = 0, hop = 0;
-        if (s.logic instanceof FlightChessLogic && FlightChessLogic.isDice(piece)) {
-            float t = s.diceRollT;
-            float ease = 1f - (1f - t) * (1f - t) * (1f - t);
-            spinDeg = 720f * ease;
-            hop = 0.02f * (float) Math.sin(t * Math.PI);
+        // 飞行棋骰子：翻滚 + 抛起
+        DiceRoll dice = DiceRoll.IDLE;
+        float hop = 0;
+        if (s.logic instanceof FlightChessLogic && FlightChessLogic.isDice(piece) && s.diceRollT < 1f) {
+            dice = diceRoll(s.diceRollT);
+            hop = DICE_HOP * (float) Math.sin(Math.PI * Math.min(1f, s.diceRollT / DICE_HOP_LAND));
         }
         float y = lift + hop;
 
         TextureAtlasSprite skin = skinFor(s, piece);
         submitModel(ps, cc, s, region, ChessboardPieceGeometry.stateFor(s.logic, piece),
-                wx, wz, y, piece, flipDeg, winTilt, spinDeg, false, skin);
+                wx, wz, y, piece, flipDeg, winTilt, dice, false, skin);
 
         BlockState charState = ChessboardPieceGeometry.charStateFor(s.logic, piece);
         if (charState != null) {
             // 汉字是本模组自己的贴图，皮肤不会覆盖它（skinQuad 会原样放过）
-            submitModel(ps, cc, s, region, charState, wx, wz, y, piece, flipDeg, winTilt, spinDeg, true, skin);
+            submitModel(ps, cc, s, region, charState, wx, wz, y, piece, flipDeg, winTilt, dice, true, skin);
         }
+    }
+
+    /** 骰子翻滚的两个角：{@code roll} 绕自身 X 轴翻，{@code lean} 绕 Z 轴歪 */
+    private record DiceRoll(float roll, float lean) {
+        static final DiceRoll IDLE = new DiceRoll(0, 0);
+    }
+
+    /**
+     * 掷骰子的姿态：绕自身 X 轴翻 {@link #DICE_ROLL_TURNS} 整圈，翻滚的同时绕 Z 轴歪一下再回正。
+     *
+     * <p>两个角都必须收在「0 或 360 的整数倍」上：动画一结束这一格就交还给烘焙几何，
+     * 而烘焙路径画的是不带任何动画旋转的模型，收尾姿态对不上就会「啪」地跳一下。
+     * 歪角走的是「缓入 → 保持 → 缓出」的形状，两端都精确为 0，所以落地时骰子是正的。
+     *
+     * <p>缓出让翻滚前快后慢 —— 看着像掷出去后滑停，而不是匀速转盘。
+     */
+    private static DiceRoll diceRoll(float t) {
+        float roll = 360f * DICE_ROLL_TURNS * easeOut(t);
+        float lean = DICE_LEAN_DEG * (easeOut(Math.clamp(t / DICE_LEAN_IN, 0f, 1f))
+                - easeOut(Math.clamp((t - DICE_LEAN_OUT) / (1f - DICE_LEAN_OUT), 0f, 1f)));
+        return new DiceRoll(roll, lean);
+    }
+
+    /** 缓出：起步快、收尾稳；{@code easeOut(1) == 1}，所以按它插值的角度能精确落到终点 */
+    private static float easeOut(float x) {
+        return 1f - (1f - x) * (1f - x) * (1f - x);
     }
 
     /**
@@ -276,17 +322,25 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
     private void submitModel(PoseStack ps, SubmitNodeCollector cc, ChessboardRenderState s,
                              BlockAndTintGetter region, BlockState state,
                              float wx, float wz, float lift,
-                             int piece, float flipDeg, float winTilt, float spinDeg, boolean textRotation,
+                             int piece, float flipDeg, float winTilt, DiceRoll dice, boolean textRotation,
                              TextureAtlasSprite skin) {
         float y = s.logic.pieceHeight() + lift;
-        float cx = s.logic.pieceCenterX() / 16f, cz = s.logic.pieceCenterZ() / 16f;
-        float sc = s.logic.pieceScale();
+        float cx = ChessboardPieceGeometry.modelCenterX(s.logic, piece);
+        float cy = ChessboardPieceGeometry.modelCenterY(s.logic, piece);
+        float cz = ChessboardPieceGeometry.modelCenterZ(s.logic, piece);
+        float sc = ChessboardPieceGeometry.modelScale(s.logic, piece);
         // 圆片类棋子的朝向跟随文字（含阵营翻转），保证棋子和自己的汉字完全对齐
         boolean textLike = textRotation || s.logic.pieceFollowsTextRotation();
         ps.pushPose();
         ps.translate(wx, y, wz);
         ChessboardPieceGeometry.rotateBy(ps, Axis.YP.rotationDegrees(ChessboardPieceGeometry.facingDegrees(s.facing, textLike)));
-        if (textLike && s.logic.side(piece) != 0) ChessboardPieceGeometry.rotateBy(ps, Axis.YP.rotationDegrees(180));
+        // 阵营翻转：条件必须和烘焙路径（ChessboardPieceGeometry#emitPiece）一字不差，
+        // 漏掉 flipOverlayBySide 就会出现「拿起时图标突然转 180°」——
+        // 选中那一刻这一格从烘焙几何换成这里逐帧画，两条链的差异当场就露出来了。
+        // 飞行棋正是靠 flipOverlayBySide=false 让四色飞机头朝同一方向的。
+        if (textLike && s.logic.flipOverlayBySide() && s.logic.side(piece) != 0) {
+            ChessboardPieceGeometry.rotateBy(ps, Axis.YP.rotationDegrees(180));
+        }
         if (winTilt != 0) ChessboardPieceGeometry.rotateBy(ps, Axis.ZP.rotationDegrees(winTilt)); // 胜利左右歪动，绕底部中心
         if (flipDeg != 0) ChessboardPieceGeometry.rotateBy(ps, Axis.XP.rotationDegrees(flipDeg));
         if (s.logic.pieceFlipX(piece)) ChessboardPieceGeometry.rotateBy(ps, Axis.XP.rotationDegrees(180));
@@ -294,12 +348,18 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
         if (ry != 0) ChessboardPieceGeometry.rotateBy(ps, Axis.YP.rotationDegrees(ry));
         ps.scale(sc, sc, sc);
         ps.translate(-cx, 0, -cz);
-        if (spinDeg != 0) {
-            // 骰子立方体在模型里占 y 0..4，此时它的几何中心落在 (0, 2, 0)，
-            // 绕这一点转才是原地翻滚（绕原点会甩出去）
-            ps.translate(0, DICE_CENTER_Y, 0);
-            ChessboardPieceGeometry.rotateBy(ps, Axis.XP.rotationDegrees(spinDeg));
-            ps.translate(0, -DICE_CENTER_Y, 0);
+        if (dice != DiceRoll.IDLE) {
+            // 轴心 = 骰子模型的几何中心 (cx, cy, cz) —— 满方块模型就是 0.5，没有换算，错不了。
+            //
+            // 坐标是在<b>没居中的模型空间</b>里量的：这段变换写在居中那句之后，而写在后面的变换
+            // 作用在更内层，所以它比居中先作用到顶点上。三个轴一个都不能省 —— 之前只给了 y、
+            // 让 x/z 当 0，轴心就落到方块角上，骰子于是绕着离自己两格远的一点公转。
+            ps.translate(cx, cy, cz);
+            // 先翻（绕自身 X），再把整个姿态歪一下（绕 Z）—— 写在前面的作用在外层，
+            // 所以歪的是翻滚的轴：看着像歪着滚，而不是先摆好姿势再转
+            if (dice.lean() != 0) ChessboardPieceGeometry.rotateBy(ps, Axis.ZP.rotationDegrees(dice.lean()));
+            if (dice.roll() != 0) ChessboardPieceGeometry.rotateBy(ps, Axis.XP.rotationDegrees(dice.roll()));
+            ps.translate(-cx, -cy, -cz);
         }
 
         BlockStateModelSet set = models();
@@ -322,7 +382,7 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
 
     public static class ChessboardRenderState extends BlockEntityRenderState {
         public int[] pieces;
-        public int selRow = -1, selCol = -1, rows, cols;
+        public int selRow = -1, selCol = -1, selIdx = 0, rows, cols;
         public Direction facing = Direction.SOUTH;
         public BoardGameLogic logic;
         /** 各槽位皮肤（方块 ID，null = 未设） */
@@ -330,6 +390,8 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
         public float lift, unlift, moveT = 1f;
         public int unselRow = -1, unselCol = -1;
         public int fromRow = -1, fromCol = -1, toRow = -1, toCol = -1;
+        /** 正在飞的那一颗棋子值（0 = 没有在飞）：落点上要把它从静止的那些里挖掉 */
+        public int movePiece;
         public int flipRow = -1, flipCol = -1;
         public float flipT = 1f;
         public int[] winCells;

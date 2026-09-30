@@ -96,21 +96,30 @@ public interface BoardGameLogic {
         return sb.toString();
     }
 
-    /** 解码：每 3 字符一组（值hex + 行b36 + 列b36） */
-    default void decodePieces(int[] pieces, String code) {
-        Arrays.fill(pieces, 0);
+    /**
+     * 解码：每 3 字符一组（值hex + 行b36 + 列b36）。
+     *
+     * <p>解析到临时数组、成功了才写回：代码不合法时<b>棋盘保持原样</b>。
+     * 早先是先 {@code Arrays.fill(0)} 再解析，一条乱码就能把整盘抹掉、调用方还报「导入成功」。
+     *
+     * @return 是否解析成功（前缀对得上）
+     */
+    default boolean decodePieces(int[] pieces, String code) {
         String prefix = codePrefix();
-        if (!code.startsWith(prefix)) return;
+        if (code == null || !code.startsWith(prefix)) return false;
         String data = code.substring(prefix.length());
+        int[] parsed = new int[pieces.length];
         for (int i = 0; i + 3 <= data.length(); i += 3) {
             try {
                 int piece = Integer.parseInt(data.substring(i, i + 1), 16);
                 int row = Integer.parseInt(data.substring(i + 1, i + 2), 36);
                 int col = Integer.parseInt(data.substring(i + 2, i + 3), 36);
                 if (row >= 0 && row < rows() && col >= 0 && col < cols())
-                    pieces[row * cols() + col] = piece;
+                    parsed[row * cols() + col] = piece;
             } catch (NumberFormatException ignored) {}
         }
+        System.arraycopy(parsed, 0, pieces, 0, pieces.length);
+        return true;
     }
     /** 格子水平偏移（像素），默认 1 */
     default float gridOffsetX() { return 1f; }
@@ -133,8 +142,100 @@ public interface BoardGameLogic {
      */
     ClickResult onClick(int[] pieces, int selRow, int selCol, int clickRow, int clickCol);
 
+    /**
+     * 选中状态：选中了哪一格（{@code row < 0} = 没选中），以及那一格里的第几颗棋子。
+     *
+     * <p>索引是给「一格多颗」用的（飞行棋和平开局的混编堆叠）：同一格里可能同时停着几个阵营的
+     * 飞机，必须能指定「走的是哪一颗」。一格一子的棋类永远用 0。
+     */
+    record Selection(int row, int col, int index) {
+        public static final Selection NONE = new Selection(-1, -1, 0);
+        public boolean isEmpty() { return row < 0; }
+    }
+
+    /**
+     * 同 {@link #onClick}，带上完整选中状态与棋盘的「和平模式」标志。
+     *
+     * <p>规则实例是<b>全局单例</b>（{@code FlightChessLogic.INSTANCE} 等），不能存每块棋盘的状态，
+     * 所以这些只能由调用方（方块实体，它持久化标志、跟着同步选中）传进来。
+     * 默认实现忽略它们、转发到 5 参版本 —— 其它棋类一行都不用改。
+     */
+    default ClickResult onClick(int[] pieces, Selection sel, int clickRow, int clickCol, boolean peaceful) {
+        return onClick(pieces, sel.row(), sel.col(), clickRow, clickCol);
+    }
+
     /** 行列 → 棋子数组下标 */
     default int idx(int row, int col) { return row * cols() + col; }
+
+    /**
+     * 这一格里有几颗棋子（0 = 空格）。
+     *
+     * <p>默认实现是「一格一子」：数组里那个值就是唯一的棋子。飞行棋覆写成按位域展开 ——
+     * 和平开局下同一个格子里可以堆着不同阵营的飞机（比如 2 红 + 1 蓝），
+     * 所以一个格子值能代表多颗棋子。
+     *
+     * <p>渲染两条路径（{@code ChessboardSectionGeometry} / {@code ChessboardRenderer}）靠
+     * {@link #occupancy} + {@link #pieceAt} 把一格展开成 N 颗，其余代码（{@code stateFor}、
+     * {@code charStateFor}、{@code SkinData#slotFor}）拿到的仍然是「一颗棋子的值」。
+     */
+    default int occupancy(int cellValue) { return cellValue == 0 ? 0 : 1; }
+
+    /**
+     * 这一格里第 {@code index} 颗棋子的值（0 = 没有这一颗）。
+     *
+     * <p>只保证 {@code index} 在 {@code 0..occupancy-1} 之间时返回非 0，顺序由实现自己定
+     * （飞行棋按队号从低到高）。默认实现只认 index 0。
+     */
+    default int pieceAt(int cellValue, int index) { return index == 0 ? cellValue : 0; }
+
+    /**
+     * 从前后两代棋盘认出「这一步把哪一颗棋子从哪搬到了哪」—— 客户端的移动动画用。
+     *
+     * <p>不能按「从有到无 + 值相等」判：一格多颗时源格可能还剩着别的棋子（从叠里拿走一颗），
+     * 而按值匹配会命中棋盘上任意一个同值的格子，把无关的格子标成动画格（那格会从烘焙几何里消失）。
+     * 这里一律按<b>颗数</b>比：源格 = 占用数变少的那一格，被搬走的是它里面「出现次数变少」的
+     * 那一颗（堆叠里拿走的未必是最低位那颗，和平开局可以指定走哪一队），落点 = 那一颗变多的格子。
+     *
+     * @return 认不出来时返回 {@link Move#NONE}（例如原地翻面、升变：没棋子挪窝）
+     */
+    static Move detectMove(BoardGameLogic g, int[] prev, int[] now) {
+        int total = Math.min(prev.length, now.length);
+        int from = -1, piece = 0;
+        for (int i = 0; i < total; i++) {
+            if (g.occupancy(prev[i]) <= g.occupancy(now[i])) continue;
+            from = i;
+            for (int k = 0, c = g.occupancy(prev[i]); k < c; k++) {
+                int cand = g.pieceAt(prev[i], k);
+                if (cand != 0 && countOf(g, prev[i], cand) > countOf(g, now[i], cand)) {
+                    piece = cand;
+                    break;
+                }
+            }
+            break;
+        }
+        if (piece == 0) return Move.NONE;
+        for (int i = 0; i < total; i++) {
+            if (countOf(g, now[i], piece) > countOf(g, prev[i], piece)) {
+                return new Move(from, i, piece);
+            }
+        }
+        return Move.NONE;
+    }
+
+    /** 这一格里有几颗「值等于 piece」的棋子 */
+    static int countOf(BoardGameLogic g, int cellValue, int piece) {
+        int n = 0;
+        for (int i = 0, c = g.occupancy(cellValue); i < c; i++) {
+            if (g.pieceAt(cellValue, i) == piece) n++;
+        }
+        return n;
+    }
+
+    /** {@link #detectMove} 的结果：源格 / 落点的数组下标 + 被搬走那一颗的值（{@code NONE} = 没认出来） */
+    record Move(int fromCell, int toCell, int piece) {
+        public static final Move NONE = new Move(-1, -1, 0);
+        public boolean isEmpty() { return piece == 0; }
+    }
 
     /** 悔棋时还原下子方（默认空操作，落子类覆写） */
     default void onUndo() {}

@@ -51,6 +51,8 @@ public final class ChessboardAnimTracker {
         int prevSelRow = -1, prevSelCol = -1;
         int unselRow = -1, unselCol = -1;
         int fromRow = -1, fromCol = -1, toRow = -1, toCol = -1;
+        /** 被搬走的是「值等于它」的那一颗（0 = 没有）。堆叠里拿走的未必是第 0 颗，渲染器要靠它挑出飞行中的那一颗 */
+        int movePiece;
         int flipRow = -1, flipCol = -1;
         int[] winCells;
         long selMs, unselMs, moveMs, flipMs, winMs;
@@ -102,20 +104,16 @@ public final class ChessboardAnimTracker {
         boolean changed = !Arrays.equals(pieces, a.prevPieces);
         if (changed) {
             a.fromRow = a.fromCol = a.toRow = a.toCol = -1;
-            int moved = 0;
-            for (int i = 0; i < total; i++) {
-                if (a.prevPieces[i] != 0 && pieces[i] == 0) {
-                    a.fromRow = i / g.cols(); a.fromCol = i % g.cols();
-                    moved = a.prevPieces[i];
-                    break;
-                }
-            }
-            for (int i = 0; i < total; i++) {
-                if (pieces[i] == moved && a.prevPieces[i] != moved) {
-                    a.toRow = i / g.cols(); a.toCol = i % g.cols();
-                    break;
-                }
-            }
+            // 源格 / 落点 / 被搬走的那一颗（按颗数比，认法见 BoardGameLogic#detectMove）。
+            // 源格非空也要播 —— 从叠里拿走一颗就是这样：留下的那几颗照旧烘进几何，
+            // 渲染器只画落点那一格、并把飞行中的那颗从落点里挖掉，两边不重不漏。
+            BoardGameLogic.Move mv = BoardGameLogic.detectMove(g, a.prevPieces, pieces);
+            a.movePiece = mv.piece();
+            int cols = g.cols();
+            a.fromRow = mv.isEmpty() ? -1 : mv.fromCell() / cols;
+            a.fromCol = mv.isEmpty() ? -1 : mv.fromCell() % cols;
+            a.toRow = mv.isEmpty() ? -1 : mv.toCell() / cols;
+            a.toCol = mv.isEmpty() ? -1 : mv.toCell() % cols;
             // 暗棋翻面：prev 为暗棋、now 为明棋
             a.flipRow = a.flipCol = -1;
             if (g instanceof ChineseChessLogic) {
@@ -170,7 +168,8 @@ public final class ChessboardAnimTracker {
         }
         // 取消选中回落
         mark(d, a.unselRow, a.unselCol, cols, a.unselMs + g.pieceLiftMs(), now);
-        // 走子/吃子：起点已空，只需动态终点
+        // 走子/吃子：只动态终点。起点（含「从叠里拿走一颗、还剩几颗」的情况）不必动态 ——
+        // 数据已经变了，重建后的几何里就是剩下的那几颗，静止姿态、不需要逐帧画。
         mark(d, a.toRow, a.toCol, cols, a.moveMs + g.pieceMoveMs(), now);
         // 暗棋翻面
         mark(d, a.flipRow, a.flipCol, cols, a.flipMs + g.pieceFlipMs(), now);

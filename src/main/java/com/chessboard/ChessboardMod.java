@@ -299,6 +299,7 @@ public class ChessboardMod {
                         .then(boardCommand("darkstart", "已暗棋开局", ChessboardBlockEntity::darkStart))
                         .then(boardCommand("fulldarkstart", "已全暗棋开局", ChessboardBlockEntity::fullDarkStart))
                         .then(boardCommand("randomstart", "已随机开局", ChessboardBlockEntity::randomStart))
+                        .then(boardCommand("peacefulstart", "已和平开局", ChessboardBlockEntity::peacefulStart))
                         .then(boardCommand("reset", "棋盘已重置", ChessboardBlockEntity::resetBoard))
                         .then(Commands.literal("import")
                                 .then(Commands.argument("x", IntegerArgumentType.integer())
@@ -313,8 +314,12 @@ public class ChessboardMod {
                                                                     String code = StringArgumentType.getString(ctx, "code");
                                                                     var be = ctx.getSource().getLevel().getBlockEntity(pos);
                                                                     if (be instanceof ChessboardBlockEntity board) {
-                                                                        board.importCode(code);
-                                                                        ctx.getSource().sendSuccess(() -> Component.literal("已导入"), true);
+                                                                        if (board.importCode(code)) {
+                                                                            ctx.getSource().sendSuccess(() -> Component.literal("已导入"), true);
+                                                                        } else {
+                                                                            // 解析失败不算导入成功：棋盘保持原样，别再报「已导入」骗人
+                                                                            ctx.getSource().sendFailure(Component.literal("代码格式不对，棋盘未改动"));
+                                                                        }
                                                                     }
                                                                     return 1;
                                                                 }))))))

@@ -136,10 +136,12 @@ public class ChessboardBlock extends BaseEntityBlock {
     private static int[] worldToModel(double wx, double wz, Direction facing, BoardGameLogic g) {
         wx *= 16.0; wz *= 16.0;
         double mx, mz;
+        // 必须是 ChessboardPieceGeometry#gridPos 的逆（那边有 vanilla 字节码的依据）。
+        // 两处同时改，否则棋子画在一处、点击判定在另一处 —— 朝西/东的棋盘会错开 90°。
         switch (facing) {
-            case WEST  -> { mx = 16 - wz; mz = wx; }
+            case WEST  -> { mx = wz; mz = 16 - wx; }
             case NORTH -> { mx = 16 - wx; mz = 16 - wz; }
-            case EAST  -> { mx = wz; mz = 16 - wx; }
+            case EAST  -> { mx = 16 - wz; mz = wx; }
             default    -> { mx = wx; mz = wz; }
         }
         // 最近邻匹配 rowPixel/colPixel
