@@ -4,7 +4,7 @@ import com.chessboard.ChessboardMod;
 import com.chessboard.SkinData;
 import com.chessboard.block.ChessboardBlock;
 import com.chessboard.blockentity.ChessboardBlockEntity;
-import com.chessboard.game.BoardGameLogic;
+import com.chessboard.api.BoardGameLogic;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.block.BlockStateModelSet;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;

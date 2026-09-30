@@ -1,9 +1,16 @@
-package com.chessboard.game;
+package com.chessboard.api;
 
-import java.util.Arrays;
+import java.util.List;
+import java.util.function.Consumer;
 
 /**
  * 棋盘游戏规则接口。
+ *
+ * <p><b>这里不许出现 Minecraft 类型</b>：规则类要能脱离游戏、用 jshell 直接跑自测
+ * （见 {@code tools/check_flight_rules.jsh}）。方法签名里一旦有方块状态之类的类型，
+ * 加载规则类就得解析 Minecraft，那条自测线立刻断掉 —— 所以「用哪个方块当模型」这类
+ * 外观钩子在 {@code client.renderer.PieceModels} 里按棋类登记，不放在这个接口上。
+ * 这里只留能算成数值的东西（缩放、中心、高度……）。
  * 每种棋类只需实现此接口，框架自动处理棋子存储、悔棋、重置、动画渲染。
  */
 public interface BoardGameLogic {
@@ -55,6 +62,102 @@ public interface BoardGameLogic {
     default float pieceCenterX() { return 2.5f; }
     /** 模型中心 Z 偏移（像素/16），默认 2.5 */
     default float pieceCenterZ() { return 2.5f; }
+
+    // ── 棋子模型的度量（数值，无 Minecraft 类型）──
+    //
+    // 框架（方块实体渲染器 / 区块几何）不再按棋类 instanceof 分派，一律问这组方法；
+    // 「用哪个方块当模型」在 client.renderer.PieceModels 里按棋类登记。
+
+    /**
+     * 模型缩放倍率（默认同 {@link #pieceScale}）。
+     *
+     * <p>只有「模型本身不是棋子尺寸」的棋子需要覆写 —— 例如满方块模型的骰子要额外缩到 4/16。
+     * 两条渲染路径都取这一个值，写岔了动画结束时就会跳一下。
+     */
+    default float modelScale(int piece) { return pieceScale(); }
+
+    /**
+     * 模型几何中心的 x / y / z（<b>方块空间</b>）。
+     *
+     * <p>普通棋子画在方块一角，中心由 {@link #pieceCenterX}/{@link #pieceCenterZ} 上报；
+     * y 只有会绕自身中心自转的模型（骰子）才用得上，其余棋子保持 0。
+     */
+    default float modelCenterX(int piece) { return pieceCenterX() / 16f; }
+    default float modelCenterY(int piece) { return 0f; }
+    default float modelCenterZ(int piece) { return pieceCenterZ() / 16f; }
+
+    // ── 皮肤槽 ──
+    //
+    // 槽位编号是**存档契约**（SkinData 的 1..10 对应老 matN+1 的迁移），只能追加不能改号。
+    // 数值仍以 SkinData.SLOT_* 为准，这里只声明两个供接口默认值使用的哨兵。
+
+    /** 不吃皮肤的哨兵 */
+    int NO_SKIN_SLOT = -1;
+    /** 棋盘本体的槽位（唯一一个所有棋类都有的槽） */
+    int BOARD_SLOT = 0;
+
+    /**
+     * 这颗棋子吃哪个皮肤槽；{@link #NO_SKIN_SLOT} = 不吃（井字棋、骰子）。
+     *
+     * <p>实现里请直接写 {@code SkinData.SLOT_*}：那些都是编译期常量，会被内联进本类，
+     * <b>不会</b>因此把 Minecraft 类型拖进规则类（这是规则类能脱离游戏跑 jshell 自测的前提）。
+     */
+    default int skinSlot(int piece) { return NO_SKIN_SLOT; }
+
+    /** 该棋类在皮肤界面里显示哪些槽（顺序即显示顺序，第一项固定是棋盘） */
+    default int[] skinSlots() { return new int[]{BOARD_SLOT}; }
+
+    // ── 开局方式 ──
+
+    /** 界面里能选的一种开局：{@code label} 是显示名，{@code command} 是命令字面量（如 {@code darkstart}） */
+    record StartAction(String label, String command) {}
+
+    /** {@link #startBoard} 的结果 */
+    enum Start {
+        /** 这种开局不属于本棋类，调用方应把棋盘还原回去 */
+        UNSUPPORTED,
+        /** 普通开局 */
+        PLAIN,
+        /** 开局顺带置位「规则模式标志」（飞行棋的和平开局），标志由调用方落盘 */
+        FLAGGED,
+    }
+
+    /** 界面「开局方式」下拉里的额外选项（「默认开局」由框架固定给出，不要在这里重复） */
+    default List<StartAction> startActions() { return List.of(); }
+
+    /**
+     * 按开局方式重设棋盘。实现负责改写 {@code pieces}。
+     *
+     * <p>新增的悔棋增量通过 {@code historyPush} 逐条交回，每条格式与
+     * {@code ChessboardBlockEntity#pushDiff} 一致：{@code {变化格数, idx, 旧值, ...}}。
+     * 一次开局推多条 = 悔棋时能逐颗回退（五子棋的随机开局就靠这个保持原有粒度）。
+     *
+     * <p>不认识 {@code mode} 时必须返回 {@link Start#UNSUPPORTED} 且<b>不得改动 pieces</b>，
+     * 框架会据此还原并返回失败。
+     */
+    default Start startBoard(int[] pieces, String mode, Consumer<int[]> historyPush) {
+        if (!"reset".equals(mode)) return Start.UNSUPPORTED;
+        initBoard(pieces);
+        return Start.PLAIN;
+    }
+
+    // ── 暗棋翻面 ──
+
+    /**
+     * 前后两代棋盘的同一格，是不是「翻面」这一步（例如暗棋翻成明棋）。
+     *
+     * <p>翻面要播翻面动画，而不是走子动画，所以框架得能认出来 —— 别再用 instanceof 判棋类。
+     */
+    default boolean isFlipTransition(int prev, int now) { return false; }
+
+    /** 翻面后那一格的新棋子值（默认原样）。中国象棋是揭掉隐藏位 */
+    default int onFlip(int piece) { return piece; }
+
+    /**
+     * 翻面动画<b>前半程</b>该显示哪颗棋子的模型（默认还是它自己）。
+     * 中国象棋在这里返回背面模型（盖上隐藏位），翻到一半时正好换面。
+     */
+    default int flippedModelPiece(int piece) { return piece; }
 
     /** 棋盘格子总跨度（像素），格间距 = span / (cols-1) 或 span / (rows-1) */
     default float gridSpan() { return 14f; }

@@ -1,5 +1,7 @@
 package com.chessboard.game;
 
+import com.chessboard.api.BoardGameLogic;
+
 /**
  * 落子类游戏（五子棋/井字棋）：点击空格放置棋子，双方轮流。
  */

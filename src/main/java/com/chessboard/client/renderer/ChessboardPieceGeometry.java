@@ -2,17 +2,7 @@ package com.chessboard.client.renderer;
 
 import com.chessboard.ChessboardMod;
 import com.chessboard.SkinData;
-import com.chessboard.block.ChessChar;
-import com.chessboard.block.ChessCharBlock;
-import com.chessboard.block.FlightDiceBlock;
-import com.chessboard.block.FlightPieceBlock;
-import com.chessboard.block.FlightTeam;
-import com.chessboard.game.BoardGameLogic;
-import com.chessboard.game.ChessLogic;
-import com.chessboard.game.ChineseChessLogic;
-import com.chessboard.game.FlightChessLogic;
-import com.chessboard.game.GomokuLogic;
-import com.chessboard.game.TicTacToeLogic;
+import com.chessboard.api.BoardGameLogic;
 import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.QuadInstance;
@@ -111,47 +101,25 @@ public final class ChessboardPieceGeometry {
 
     // ── 棋子模型的尺寸与几何中心 ──
     //
-    // 两条渲染路径都要用这一组函数算缩放和中心，别各写一份（写岔了就是动画结束时跳一下，
-    // 或者轴心跑到模型外面去）。
+    // 数值本身归棋类（BoardGameLogic 的 modelScale / modelCenterX-Y-Z），这里只是给两条渲染路径
+    // 一个统一的调用入口：写岔了就是动画结束时跳一下，或者轴心跑到模型外面去。
 
-    /**
-     * 骰子用的是<b>满方块</b>模型（0..16），要缩回小立方体的大小 —— 4/16。
-     *
-     * <p>满方块是故意的：它的几何中心就是方块正中 {@code (0.5, 0.5, 0.5)}，旋转轴心直接取这个数。
-     * 原来模型是角落里 4 单位见方的小立方体（中心 {@code (2.5, 2, 2.5)}），轴心得由几个换算过的
-     * 常数拼出来，漏一个就变成绕骰子外面的点公转 —— 这个坑踩过。
-     */
-    private static final float DICE_MODEL_SCALE = 4f / 16f;
-
-    /** 满方块模型的几何中心（方块空间） */
-    public static final float FULL_BLOCK_CENTER = 0.5f;
-
-    /** 这颗棋子是不是「满方块」模型（目前只有飞行棋的骰子） */
-    public static boolean isFullBlockModel(BoardGameLogic g, int piece) {
-        return g instanceof FlightChessLogic && FlightChessLogic.isDice(piece);
-    }
-
-    /** 棋子模型的缩放倍率 */
+    /** 棋子模型的缩放倍率（见 {@link BoardGameLogic#modelScale}） */
     public static float modelScale(BoardGameLogic g, int piece) {
-        return g.pieceScale() * (isFullBlockModel(g, piece) ? DICE_MODEL_SCALE : 1f);
+        return g.modelScale(piece);
     }
 
-    /**
-     * 棋子模型几何中心的 x / y / z（<b>方块空间</b>）。
-     *
-     * <p>普通棋子由棋类自报（{@code pieceCenterX()/16f}，模型画在方块的一角）；
-     * 满方块模型就是 0.5。y 只有会自转的骰子用得上，其余棋子不会绕自身中心转。
-     */
+    /** 棋子模型几何中心（方块空间），见 {@link BoardGameLogic#modelCenterX} */
     public static float modelCenterX(BoardGameLogic g, int piece) {
-        return isFullBlockModel(g, piece) ? FULL_BLOCK_CENTER : g.pieceCenterX() / 16f;
+        return g.modelCenterX(piece);
     }
 
     public static float modelCenterY(BoardGameLogic g, int piece) {
-        return isFullBlockModel(g, piece) ? FULL_BLOCK_CENTER : 0f;
+        return g.modelCenterY(piece);
     }
 
     public static float modelCenterZ(BoardGameLogic g, int piece) {
-        return isFullBlockModel(g, piece) ? FULL_BLOCK_CENTER : g.pieceCenterZ() / 16f;
+        return g.modelCenterZ(piece);
     }
 
     /** 棋盘行列 → 方块内局部坐标（写入 out，避免每格分配数组） */
@@ -177,38 +145,9 @@ public final class ChessboardPieceGeometry {
      * 贴图由动态皮肤按 {@link SkinData#slotFor} 的槽位单独覆盖。
      */
     public static BlockState stateFor(BoardGameLogic g, int piece) {
-        return switch (g) {
-            case ChineseChessLogic ccl -> (ChineseChessLogic.isHidden(piece)
-                    ? ChessboardMod.CHINESE_PIECE_HIDDEN.get()
-                    : ChessboardMod.CHESS_PIECE_MODEL.get()).defaultBlockState();
-            case GomokuLogic gml -> (GomokuLogic.isGray(piece)
-                    ? ChessboardMod.GOMOKU_PIECE_GRAY.get()
-                    : (gml.side(piece) == 0
-                            ? ChessboardMod.GOMOKU_PIECE_BLACK.get()
-                            : ChessboardMod.GOMOKU_PIECE_WHITE.get())).defaultBlockState();
-            case TicTacToeLogic ttt -> ChessboardMod.TICTACTOE_PIECE_MODEL.get().defaultBlockState();
-            case ChessLogic cl -> {
-                boolean isWhite = cl.side(piece) == 0;
-                yield switch (ChessLogic.type(piece)) {
-                    case ChessLogic.KING -> (isWhite ? ChessboardMod.CHESS_PIECE_KING_WHITE.get() : ChessboardMod.CHESS_PIECE_KING.get()).defaultBlockState();
-                    case ChessLogic.QUEEN -> (isWhite ? ChessboardMod.CHESS_PIECE_QUEEN_WHITE.get() : ChessboardMod.CHESS_PIECE_QUEEN.get()).defaultBlockState();
-                    case ChessLogic.BISHOP -> (isWhite ? ChessboardMod.CHESS_PIECE_BISHOP_WHITE.get() : ChessboardMod.CHESS_PIECE_BISHOP.get()).defaultBlockState();
-                    case ChessLogic.KNIGHT -> (isWhite ? ChessboardMod.CHESS_PIECE_KNIGHT_WHITE.get() : ChessboardMod.CHESS_PIECE_KNIGHT.get()).defaultBlockState();
-                    case ChessLogic.ROOK -> (isWhite ? ChessboardMod.CHESS_PIECE_ROOK_WHITE.get() : ChessboardMod.CHESS_PIECE_ROOK.get()).defaultBlockState();
-                    default -> (isWhite ? ChessboardMod.CHESS_PIECE_PAWN_WHITE.get() : ChessboardMod.CHESS_PIECE_PAWN.get()).defaultBlockState();
-                };
-            }
-            case FlightChessLogic fcl -> {
-                // 中央格是骰子，其余格是四色飞机（队色由 TEAM 属性决定，皮肤按队单独覆盖）
-                if (FlightChessLogic.isDice(piece)) {
-                    yield ChessboardMod.FLIGHT_DICE.get().defaultBlockState()
-                            .setValue(FlightDiceBlock.FACE, FlightChessLogic.faceOf(piece));
-                }
-                yield ChessboardMod.FLIGHT_PIECE.get().defaultBlockState()
-                        .setValue(FlightPieceBlock.TEAM, FlightTeam.of(fcl.side(piece)));
-            }
-            default -> ChessboardMod.CHESS_PIECE_MODEL.get().defaultBlockState();
-        };
+        PieceModels m = PieceModels.of(g);
+        BlockState s = m == null ? null : m.model(g, piece);
+        return s != null ? s : ChessboardMod.CHESS_PIECE_MODEL.get().defaultBlockState();
     }
 
     /**
@@ -216,17 +155,8 @@ public final class ChessboardPieceGeometry {
      * 汉字已做成贴图，可与棋子一起烘焙进区块几何。
      */
     public static BlockState charStateFor(BoardGameLogic g, int piece) {
-        // 飞行棋：飞机圆片上叠一层飞机图标（四队共用同一张图），骰子不叠
-        if (g instanceof FlightChessLogic) {
-            return FlightChessLogic.isPlane(piece)
-                    ? ChessboardMod.FLIGHT_ICON.get().defaultBlockState()
-                    : null;
-        }
-        if (!(g instanceof ChineseChessLogic)) return null;
-        if (ChineseChessLogic.isHidden(piece)) return null;
-        ChessChar c = ChessChar.of(ChineseChessLogic.type(piece), g.side(piece));
-        return c == null ? null
-                : ChessboardMod.CHINESE_PIECE_CHAR.get().defaultBlockState().setValue(ChessCharBlock.CHAR, c);
+        PieceModels m = PieceModels.of(g);
+        return m == null ? null : m.overlay(g, piece);
     }
 
     // ── 动态皮肤 ──

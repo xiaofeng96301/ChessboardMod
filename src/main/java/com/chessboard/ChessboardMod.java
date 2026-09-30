@@ -1,12 +1,11 @@
 package com.chessboard;
 
-import com.chessboard.SkinData;
 import com.chessboard.block.ChessCharBlock;
 import com.chessboard.block.ChessboardBlock;
 import com.chessboard.block.FlightDiceBlock;
 import com.chessboard.block.FlightPieceBlock;
 import com.chessboard.blockentity.ChessboardBlockEntity;
-import com.chessboard.game.BoardGameLogic;
+import com.chessboard.api.BoardGameLogic;
 import com.chessboard.game.ChessLogic;
 import com.chessboard.game.ChineseChessLogic;
 import com.chessboard.game.FlightChessLogic;

@@ -1,6 +1,6 @@
 package com.chessboard;
 
-import com.chessboard.game.BoardGameLogic;
+import com.chessboard.api.BoardGameLogic;
 import com.chessboard.game.ChessLogic;
 import com.chessboard.game.ChineseChessLogic;
 import com.chessboard.game.FlightChessLogic;
@@ -29,8 +29,8 @@ public final class SkinData {
     // ── 槽位表 ──
     // 1..6 对应旧 MaterialData 的 0..5 顺移一位，这个顺序让老 matN 的迁移就是 +1
 
-    /** 棋盘本体（边框 / 底板） */
-    public static final int SLOT_BOARD = 0;
+    /** 棋盘本体（边框 / 底板）—— 与框架接口同源，防止两边漂移 */
+    public static final int SLOT_BOARD = BoardGameLogic.BOARD_SLOT;
     /** 中国象棋（红黑双方共用一个槽，区分靠汉字颜色） */
     public static final int SLOT_CHINESE = 1;
     public static final int SLOT_CHESS_WHITE = 2;
@@ -45,8 +45,8 @@ public final class SkinData {
     public static final int SLOT_FLIGHT_GREEN = 10;
     public static final int SLOT_COUNT = 11;
 
-    /** 该棋子不吃皮肤（井字棋走自己的贴图、骰子走本模组贴图） */
-    public static final int NO_SLOT = -1;
+    /** 该棋子不吃皮肤（井字棋走自己的贴图、骰子走本模组贴图）—— 与框架接口同源 */
+    public static final int NO_SLOT = BoardGameLogic.NO_SKIN_SLOT;
 
     private SkinData() {}
 
@@ -58,31 +58,12 @@ public final class SkinData {
      * <p>渲染两条路径（静态烘焙 + 动画渲染器）都靠它决定贴图，必须唯一。
      */
     public static int slotFor(BoardGameLogic g, int piece) {
-        return switch (g) {
-            case ChineseChessLogic ccl -> SLOT_CHINESE;
-            case ChessLogic cl -> cl.side(piece) == 0 ? SLOT_CHESS_WHITE : SLOT_CHESS_BLACK;
-            case GomokuLogic gml -> GomokuLogic.isGray(piece)
-                    ? SLOT_GOMOKU_GRAY
-                    : (gml.side(piece) == 0 ? SLOT_GOMOKU_BLACK : SLOT_GOMOKU_WHITE);
-            // 必须先判骰子：side() 对骰子返回 0，会误映射到红队槽
-            case FlightChessLogic fcl -> FlightChessLogic.isDice(piece)
-                    ? NO_SLOT
-                    : SLOT_FLIGHT_RED + fcl.side(piece);
-            default -> NO_SLOT; // 井字棋
-        };
+        return g.skinSlot(piece); // 各棋类自己报，见 BoardGameLogic#skinSlot
     }
 
     /** 该棋类要在管理界面里显示哪些样式格（顺序即显示顺序，第一项固定是棋盘） */
     public static int[] slotsFor(BoardGameLogic g) {
-        return switch (g) {
-            case ChineseChessLogic ccl -> new int[]{SLOT_BOARD, SLOT_CHINESE};
-            case ChessLogic cl -> new int[]{SLOT_BOARD, SLOT_CHESS_WHITE, SLOT_CHESS_BLACK};
-            case GomokuLogic gml -> new int[]{
-                    SLOT_BOARD, SLOT_GOMOKU_BLACK, SLOT_GOMOKU_WHITE, SLOT_GOMOKU_GRAY};
-            case FlightChessLogic fcl -> new int[]{
-                    SLOT_BOARD, SLOT_FLIGHT_RED, SLOT_FLIGHT_YELLOW, SLOT_FLIGHT_BLUE, SLOT_FLIGHT_GREEN};
-            default -> new int[]{SLOT_BOARD};
-        };
+        return g.skinSlots();
     }
 
     /**

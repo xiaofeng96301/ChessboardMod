@@ -4,7 +4,8 @@ import com.chessboard.Config;
 import com.chessboard.SkinData;
 import com.chessboard.block.ChessboardBlock;
 import com.chessboard.blockentity.ChessboardBlockEntity;
-import com.chessboard.game.BoardGameLogic;
+import com.chessboard.api.BoardGameLogic;
+import com.chessboard.api.DiceBoard;
 import com.chessboard.game.ChineseChessLogic;
 import com.chessboard.game.FlightChessLogic;
 import com.mojang.blaze3d.vertex.PoseStack;
@@ -47,15 +48,6 @@ import java.util.Map;
  * 会出现亮度跳变。
  */
 public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEntity, ChessboardRenderer.ChessboardRenderState> {
-
-    /** 骰子翻滚圈数（绕自身 X 轴）：必须整圈，才能落回原姿态 */
-    private static final float DICE_ROLL_TURNS = 2f;
-    /** 翻滚时顺带歪一下的最大角（绕 Z）：纯单轴旋转太像机械转盘，歪一下才像被掷出去 */
-    private static final float DICE_LEAN_DEG = 30f;
-    /** 歪进去 / 回正的时刻（占整段动画的比例），回正要早于收尾 */
-    private static final float DICE_LEAN_IN = 0.25f, DICE_LEAN_OUT = 0.65f;
-    /** 抛起高度（格）与落地时刻：和缓出的翻滚同步，中段落地、落地后滑停 */
-    private static final float DICE_HOP = 0.04f, DICE_HOP_LAND = 0.7f;
 
     /** 与区块几何路径同一个光照器；懒创建 —— 它内部取线程本地的 AO 缓存，必须在实际使用线程上构造 */
     private BlockModelLighter lighter;
@@ -174,7 +166,9 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
                 ? Math.clamp((now - a.winMs) / (float) ChessboardAnimTracker.WIN_ANIM_MS, 0f, 1f)
                 : 1f;
         // 飞行棋骰子翻滚进度（未掷过时 rollMs=0，这里自然收敛到 1 = 静止）
-        s.diceRollT = Math.clamp((now - a.rollMs) / (float) ChessboardAnimTracker.DICE_ROLL_MS, 0f, 1f);
+        s.diceRollT = (s.logic instanceof DiceBoard db)
+                ? Math.clamp((now - a.rollMs) / (float) db.diceRollMs(), 0f, 1f)
+                : 1f;
     }
 
     @Override
@@ -234,8 +228,9 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
                     // 整格一藏它们就跟着消失；这一颗不挖又会「静止 + 飞行」画两遍。
                     if (piece == flying && s.logic.pieceAt(cellValue, i + 1) != piece) continue;
                     // 翻面前半程显示背面（暗棋）模型
+                    // 翻面动画前半程显示哪颗棋子的模型，由棋类自己报（中国象棋=背面）
                     int modelPiece = (flipping && s.flipT < 0.5f)
-                            ? ChineseChessLogic.hide(piece)
+                            ? s.logic.flippedModelPiece(piece)
                             : piece;
                     float lift = ChessboardPieceGeometry.stackLift(s.logic, i);
                     if (sel && i == s.selIdx) lift += s.lift;
@@ -268,12 +263,12 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
     private void renderPiece(PoseStack ps, SubmitNodeCollector cc, ChessboardRenderState s,
                              BlockAndTintGetter region, float wx, float wz, float lift,
                              int piece, float flipDeg, float winTilt) {
-        // 飞行棋骰子：翻滚 + 抛起
+        // 骰子（任何实现 DiceBoard 的玩法）：翻滚 + 抛起
         DiceRoll dice = DiceRoll.IDLE;
         float hop = 0;
-        if (s.logic instanceof FlightChessLogic && FlightChessLogic.isDice(piece) && s.diceRollT < 1f) {
-            dice = diceRoll(s.diceRollT);
-            hop = DICE_HOP * (float) Math.sin(Math.PI * Math.min(1f, s.diceRollT / DICE_HOP_LAND));
+        if (s.logic instanceof DiceBoard db && db.isDice(piece) && s.diceRollT < 1f) {
+            dice = diceRoll(db, s.diceRollT);
+            hop = db.diceHop() * (float) Math.sin(Math.PI * Math.min(1f, s.diceRollT / db.diceHopLand()));
         }
         float y = lift + hop;
 
@@ -302,10 +297,10 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
      *
      * <p>缓出让翻滚前快后慢 —— 看着像掷出去后滑停，而不是匀速转盘。
      */
-    private static DiceRoll diceRoll(float t) {
-        float roll = 360f * DICE_ROLL_TURNS * easeOut(t);
-        float lean = DICE_LEAN_DEG * (easeOut(Math.clamp(t / DICE_LEAN_IN, 0f, 1f))
-                - easeOut(Math.clamp((t - DICE_LEAN_OUT) / (1f - DICE_LEAN_OUT), 0f, 1f)));
+    private static DiceRoll diceRoll(DiceBoard d, float t) {
+        float roll = 360f * d.diceRollTurns() * easeOut(t);
+        float lean = d.diceLeanDeg() * (easeOut(Math.clamp(t / d.diceLeanIn(), 0f, 1f))
+                - easeOut(Math.clamp((t - d.diceLeanOut()) / (1f - d.diceLeanOut()), 0f, 1f)));
         return new DiceRoll(roll, lean);
     }
 

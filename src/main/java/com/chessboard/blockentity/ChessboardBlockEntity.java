@@ -2,11 +2,9 @@ package com.chessboard.blockentity;
 
 import com.chessboard.SkinData;
 import com.chessboard.block.ChessboardBlock;
-import com.chessboard.game.BoardGameLogic;
-import com.chessboard.game.BoardGameLogic.ClickResult;
-import com.chessboard.game.ChineseChessLogic;
+import com.chessboard.api.BoardGameLogic;
+import com.chessboard.api.BoardGameLogic.ClickResult;
 import com.chessboard.game.FlightChessLogic;
-import com.chessboard.game.GomokuLogic;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.component.DataComponentGetter;
@@ -27,10 +25,8 @@ import net.minecraft.world.level.storage.ValueOutput;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Deque;
 import java.util.List;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -175,7 +171,7 @@ public class ChessboardBlockEntity extends BlockEntity {
             case ClickResult.Place(int rw, int cl) -> pushDiff(before);
             case ClickResult.None() -> {}
             case ClickResult.Flip(int rw, int cl) -> {
-                pieces[idx(rw, cl)] = ChineseChessLogic.reveal(pieces[idx(rw, cl)]);
+                pieces[idx(rw, cl)] = g.onFlip(pieces[idx(rw, cl)]);
                 selRow = -1; selCol = -1; selIdx = 0;
             }
         }
@@ -230,61 +226,44 @@ public class ChessboardBlockEntity extends BlockEntity {
     }
 
     /** 中国象棋暗棋开局：重置棋盘，类型随机打乱并盖上背面 */
-    public void darkStart() {
-        if (gameLogic() instanceof ChineseChessLogic ccl) {
-            ccl.darkStart(pieces);
-            resetState();
-        }
-    }
+    public void darkStart() { start("darkstart"); }
 
     /** 中国象棋全暗棋开局：重置棋盘，红黑双方棋子值和位置全部随机并盖上背面 */
-    public void fullDarkStart() {
-        if (gameLogic() instanceof ChineseChessLogic ccl) {
-            ccl.fullDarkStart(pieces);
-            resetState();
-        }
-    }
+    public void fullDarkStart() { start("fulldarkstart"); }
 
     /** 五子棋随机开局：先重置棋盘，再在随机空位放 3~10 个灰色障碍棋子 */
-    public void randomStart() {
-        BoardGameLogic g = gameLogic();
-        if (!(g instanceof GomokuLogic)) return;
-        g.initBoard(pieces);
-        history.clear();
-        List<Integer> empty = new ArrayList<>();
-        for (int i = 0; i < pieces.length; i++) {
-            if (pieces[i] == 0) empty.add(i);
-        }
-        if (empty.isEmpty()) return;
-        Collections.shuffle(empty);
-        int count = 3 + ThreadLocalRandom.current().nextInt(8); // 3~10
-        count = Math.min(count, empty.size());
-        for (int i = 0; i < count; i++) {
-            int idx = empty.get(i);
-            pieces[idx] = GomokuLogic.GRAY;
-            // 一条单格增量：这一个格子放了灰子，旧值是空
-            history.push(new int[]{1, idx, 0});
-        }
-        selRow = -1; selCol = -1; selIdx = 0;
-        notifyChange();
-    }
+    public void randomStart() { start("randomstart"); }
 
     /** 默认开局（也是重置）：清掉和平标志 */
-    public void resetBoard() {
-        peaceful = false;
-        gameLogic().initBoard(pieces);
-        resetState();
-    }
+    public void resetBoard() { start("reset"); }
 
     /**
      * 飞行棋和平开局：重置棋盘并设为和平模式 —— 不同阵营落在同一格会堆叠共存，永不发生吃子。
      * 非飞行棋棋盘直接不动（和 darkStart/randomStart 一样按棋类自我筛）。
      */
-    public void peacefulStart() {
-        if (!(gameLogic() instanceof FlightChessLogic)) return;
-        peaceful = true;
-        gameLogic().initBoard(pieces);
-        resetState();
+    public void peacefulStart() { start("peacefulstart"); }
+
+    /**
+     * 统一的「按开局方式重开」。开局本身归棋类（{@link BoardGameLogic#startBoard}），
+     * 这里只管：快照 → 调开局 → 处理结果（不支持就还原 / 清历史 / 落盘规则模式标志 / 清选中 / 刷新）。
+     *
+     * @return {@code false} = 这个棋类不支持这种开局（棋盘原样不动）
+     */
+    public boolean start(String mode) {
+        BoardGameLogic g = gameLogic();
+        int[] before = pieces.clone();
+        List<int[]> staged = new ArrayList<>();
+        BoardGameLogic.Start result = g.startBoard(pieces, mode, staged::add);
+        if (result == BoardGameLogic.Start.UNSUPPORTED) {
+            System.arraycopy(before, 0, pieces, 0, pieces.length);
+            return false;
+        }
+        history.clear();
+        for (int[] rec : staged) history.push(rec);   // 开局自带的历史增量（五子棋随机开局逐颗登记）
+        peaceful = (result == BoardGameLogic.Start.FLAGGED);
+        selRow = -1; selCol = -1; selIdx = 0;
+        notifyChange();
+        return true;
     }
 
     /** 清空选中与历史并通知同步（重置/导入/开局共用） */

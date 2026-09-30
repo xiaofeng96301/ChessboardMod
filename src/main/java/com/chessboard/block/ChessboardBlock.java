@@ -1,9 +1,8 @@
 package com.chessboard.block;
 
 import com.chessboard.ChessboardMod;
-import com.chessboard.SkinData;
 import com.chessboard.blockentity.ChessboardBlockEntity;
-import com.chessboard.game.BoardGameLogic;
+import com.chessboard.api.BoardGameLogic;
 import com.chessboard.game.ChineseChessLogic;
 import com.mojang.serialization.MapCodec;
 import net.minecraft.core.BlockPos;
@@ -76,7 +75,12 @@ public class ChessboardBlock extends BaseEntityBlock {
                 .setValue(FRAMELESS, false));
     }
 
-    /** 按方块状态（无框/带框）返回对应游戏逻辑 */
+    /**
+     * 按方块状态（无框/带框）返回对应游戏逻辑。
+     *
+     * <p>{@code logic} 为 null 只可能是 {@link #CODEC} 那个占位实例（它必须存在，但从不放置、
+     * 也从不渲染），兜一个默认规则只是为了不 NPE。真实的棋盘方块注册时都带着两套逻辑。
+     */
     public BoardGameLogic getGameLogic(BlockState state) {
         BoardGameLogic g = state.getValue(FRAMELESS) ? framelessLogic : gameLogic;
         return g != null ? g : ChineseChessLogic.INSTANCE;

@@ -35,6 +35,9 @@ public class TicTacToeLogic implements PlaceGameLogic {
     @Override public int textColor(int piece) { return 0; }
     @Override public int side(int piece) { return piece == O ? 0 : 1; }
     @Override public String codePrefix() { return "jz"; }
+
+    // 模型（两方共用，X 方靠 pieceFlipX 翻面）在 client.renderer.PieceModels 里登记 ——
+    // 不放这里是为了让规则类保持纯 Java，能脱离 Minecraft 跑 jshell 自测。
     @Override public float pieceScale() { return 0.55f; }
     @Override public float pieceCenterX() { return 3.5f; }
     @Override public float pieceCenterZ() { return 3.5f; }

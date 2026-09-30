@@ -1,6 +1,13 @@
 package com.chessboard.game;
 
+import com.chessboard.SkinData;
+
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.Consumer;
 
 /**
  * 五子棋规则：15×15 棋盘，黑先白后，点击空格落子。
@@ -46,6 +53,48 @@ public class GomokuLogic implements PlaceGameLogic {
     }
 
     @Override public String codePrefix() { return "wz"; }
+
+    // 模型（黑白双方 + 随机开局的灰色障碍子）在 client.renderer.PieceModels 里登记 ——
+    // 不放这里是为了让规则类保持纯 Java，能脱离 Minecraft 跑 jshell 自测。
+
+    @Override public int skinSlot(int piece) {
+        if (isGray(piece)) return SkinData.SLOT_GOMOKU_GRAY;
+        return side(piece) == 0 ? SkinData.SLOT_GOMOKU_BLACK : SkinData.SLOT_GOMOKU_WHITE;
+    }
+
+    @Override public int[] skinSlots() {
+        return new int[]{SkinData.SLOT_BOARD, SkinData.SLOT_GOMOKU_BLACK,
+                SkinData.SLOT_GOMOKU_WHITE, SkinData.SLOT_GOMOKU_GRAY};
+    }
+
+    @Override
+    public List<StartAction> startActions() {
+        return List.of(new StartAction("随机开局", "randomstart"));
+    }
+
+    /** 随机开局：摆 3~10 颗灰色障碍子；<b>逐颗</b>推历史，悔棋时也逐颗回退（与改前一致） */
+    @Override
+    public Start startBoard(int[] pieces, String mode, Consumer<int[]> historyPush) {
+        if (!"randomstart".equals(mode)) {
+            if (!"reset".equals(mode)) return Start.UNSUPPORTED;
+            initBoard(pieces);
+            return Start.PLAIN;
+        }
+        initBoard(pieces);
+        List<Integer> empty = new ArrayList<>();
+        for (int i = 0; i < pieces.length; i++) if (pieces[i] == 0) empty.add(i);
+        if (!empty.isEmpty()) {
+            Collections.shuffle(empty);
+            int count = Math.min(3 + ThreadLocalRandom.current().nextInt(8), empty.size()); // 3~10
+            for (int i = 0; i < count; i++) {
+                int idx = empty.get(i);
+                pieces[idx] = GRAY;
+                // 一条单格增量：这个格子放了灰子、旧值是空
+                historyPush.accept(new int[]{1, idx, 0});
+            }
+        }
+        return Start.PLAIN;
+    }
     @Override public float pieceScale() { return 0.25f / 1.5f; }
     @Override public float gridSpan() { return span; }
     @Override public float gridOffsetX() { return offset; }

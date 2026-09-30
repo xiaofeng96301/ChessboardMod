@@ -1,5 +1,8 @@
 package com.chessboard.game;
 
+import com.chessboard.SkinData;
+import com.chessboard.api.BoardGameLogic;
+
 import java.util.Arrays;
 
 /**
@@ -41,6 +44,17 @@ public class ChessLogic implements BoardGameLogic {
     @Override public int textColor(int piece) { return 0; }
     @Override public int side(int piece) { return (piece >> 3) & 1; }
     @Override public String codePrefix() { return "ic"; }
+
+    // 模型（六种棋型 × 黑白两色）在 client.renderer.PieceModels 里登记 ——
+    // 不放这里是为了让规则类保持纯 Java，能脱离 Minecraft 跑 jshell 自测。
+
+    @Override public int skinSlot(int piece) {
+        return side(piece) == 0 ? SkinData.SLOT_CHESS_WHITE : SkinData.SLOT_CHESS_BLACK;
+    }
+
+    @Override public int[] skinSlots() {
+        return new int[]{SkinData.SLOT_BOARD, SkinData.SLOT_CHESS_WHITE, SkinData.SLOT_CHESS_BLACK};
+    }
 
     @Override public float pieceScale() { return 0.6f; }
 

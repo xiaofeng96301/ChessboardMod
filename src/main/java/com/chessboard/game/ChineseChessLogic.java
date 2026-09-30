@@ -1,10 +1,14 @@
 package com.chessboard.game;
 
+import com.chessboard.SkinData;
+import com.chessboard.api.BoardGameLogic;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
+import java.util.function.Consumer;
 
 /**
  * 中国象棋规则：10×9 棋盘，红/黑双方各 16 枚棋子。
@@ -89,6 +93,41 @@ public class ChineseChessLogic implements BoardGameLogic {
     @Override public int textColor(int piece) { return isHidden(piece) ? 0 : (side(piece) == 0 ? 0xFFCC2222 : 0xFF1A1A1A); }
     @Override public int side(int piece) { return (piece >> 3) & 1; }
     @Override public String codePrefix() { return "xq"; }
+
+    // 模型（暗棋背面 / 圆片 + 汉字）在 client.renderer.PieceModels 里登记 ——
+    // 不放这里是为了让规则类保持纯 Java，能脱离 Minecraft 跑 jshell 自测。
+
+    /** 红黑双方共用「象棋」一个槽，区分靠汉字颜色 */
+    @Override public int skinSlot(int piece) { return SkinData.SLOT_CHINESE; }
+
+    @Override public int[] skinSlots() { return new int[]{SkinData.SLOT_BOARD, SkinData.SLOT_CHINESE}; }
+
+    @Override
+    public List<StartAction> startActions() {
+        return List.of(new StartAction("暗棋开局", "darkstart"),
+                new StartAction("全暗棋开局", "fulldarkstart"));
+    }
+
+    @Override
+    public Start startBoard(int[] pieces, String mode, Consumer<int[]> historyPush) {
+        return switch (mode) {
+            case "darkstart" -> { darkStart(pieces); yield Start.PLAIN; }
+            case "fulldarkstart" -> { fullDarkStart(pieces); yield Start.PLAIN; }
+            case "reset" -> { initBoard(pieces); yield Start.PLAIN; }
+            default -> Start.UNSUPPORTED;
+        };
+    }
+
+    /** 暗棋翻成明棋：上一代带隐藏位、这一代没有，且值确实变了 */
+    @Override
+    public boolean isFlipTransition(int prev, int now) {
+        return isHidden(prev) && !isHidden(now) && prev != now;
+    }
+
+    @Override public int onFlip(int piece) { return reveal(piece); }
+
+    /** 翻面动画前半程显示背面（暗棋模型） */
+    @Override public int flippedModelPiece(int piece) { return hide(piece); }
 
     /** 圆片没有正反面，朝向跟随汉字（并按阵营翻转），否则黑方棋子和汉字会差 180° */
     @Override public boolean pieceFollowsTextRotation() { return true; }

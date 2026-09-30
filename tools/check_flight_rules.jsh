@@ -5,6 +5,7 @@
 // 全部检查必须包在 run() 里：jshell 是逐条语句求值的，散着写的话某条 throw 之后
 // 后面的 println 照样会打印，看起来像「全过了」，其实前面早就炸了。
 import com.chessboard.game.*;
+import com.chessboard.api.*;
 
 int COLS = FlightChessLogic.INSTANCE.cols();
 int idx(int r, int c) { return r * COLS + c; }
@@ -37,9 +38,9 @@ void run() {
     }
 
     // 2) 骰子初始 1；点骰子掷出 1..6
-    if (FlightChessLogic.faceOf(p[FlightChessLogic.DICE_CELL]) != 1) throw new RuntimeException("骰子初始应为 1");
+    if (FlightChessLogic.INSTANCE.faceOf(p[FlightChessLogic.DICE_CELL]) != 1) throw new RuntimeException("骰子初始应为 1");
     FlightChessLogic.INSTANCE.onClick(p, BoardGameLogic.Selection.NONE, 7, 7, false);
-    int face = FlightChessLogic.faceOf(p[FlightChessLogic.DICE_CELL]);
+    int face = FlightChessLogic.INSTANCE.faceOf(p[FlightChessLogic.DICE_CELL]);
     if (face < 1 || face > 6) throw new RuntimeException("掷骰应得 1..6，实际 " + face);
 
     // 3) 同队堆叠 + 一次只移一架
@@ -91,7 +92,7 @@ void run() {
     int[] s = fresh();
     if (s[idx(1, 12)] != 1) throw new RuntimeException("单架红机应编码为 1，实际 " + s[idx(1, 12)]);
     if (s[idx(12, 12)] != 3) throw new RuntimeException("单架蓝机应编码为 3，实际 " + s[idx(12, 12)]);
-    if (s[FlightChessLogic.DICE_CELL] != FlightChessLogic.pieceForFace(1)) throw new RuntimeException("骰子编码应为 10+1=11");
+    if (s[FlightChessLogic.DICE_CELL] != FlightChessLogic.INSTANCE.pieceForFace(1)) throw new RuntimeException("骰子编码应为 10+1=11");
 
     // 9) 编解码往返（含混编堆叠）；老 "fx" 码仍可解；乱码被拒且不动棋盘
     p = fresh();

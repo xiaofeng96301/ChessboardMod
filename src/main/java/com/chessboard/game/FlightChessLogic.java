@@ -1,7 +1,12 @@
 package com.chessboard.game;
 
+import com.chessboard.SkinData;
+import com.chessboard.api.BoardGameLogic;
+import com.chessboard.api.DiceBoard;
+
 import java.util.Arrays;
-import java.util.concurrent.ThreadLocalRandom;
+import java.util.List;
+import java.util.function.Consumer;
 
 /**
  * 飞行棋：17×17 棋盘，四队各 4 架飞机，正中央一格是骰子。
@@ -53,7 +58,7 @@ import java.util.concurrent.ThreadLocalRandom;
  * <p>两种开局：<b>默认</b>（同队堆叠、异队整格吃回机库）、<b>和平</b>（异队也堆叠共存，永不发生吃子）。
  * 模式存在方块实体上，通过 {@code onClick(..., peaceful)} 传进来 —— 规则实例是全局单例，不能存每块棋盘的状态。
  */
-public class FlightChessLogic implements BoardGameLogic {
+public class FlightChessLogic implements BoardGameLogic, DiceBoard {
 
     /** 带框棋盘（格距 14/(15-1) 铺满 14 像素） */
     public static final FlightChessLogic INSTANCE = new FlightChessLogic(1f, 14f);
@@ -184,15 +189,19 @@ public class FlightChessLogic implements BoardGameLogic {
      * 是否骰子。范围收窄成老编码的 11..16 —— 因为多架打包值（{@code >= PACK_BASE}）也 ≥ 10，
      * 老写法 {@code >= 10} 会把堆叠格当成骰子（画面表现是所有堆叠都变红队，不崩不报错，很难查）。
      */
-    public static boolean isDice(int piece) { return piece > DICE_BASE && piece <= DICE_BASE + 6; }
+    @Override public boolean isDice(int piece) { return DiceValues.is(piece, DICE_BASE); }
     /** 是否「单颗飞机值」（{@code 1..4}）。只对 {@link #pieceAt} 展开出来的值有意义 */
     public static boolean isPlane(int piece) { return piece >= 1 && piece <= 4; }
     /** 是否多架打包值（同一格里 2 架及以上） */
     public static boolean isMulti(int piece) { return piece >= PACK_BASE; }
+
+    // ── DiceBoard：骰子格与点数（编码工具在 DiceValues，任何玩法都能用）──
+
+    @Override public int diceCell() { return DICE_CELL; }
     /** 骰子朝上的点数 1..6（非骰子返回 1） */
-    public static int faceOf(int piece) { return isDice(piece) ? piece - DICE_BASE : 1; }
+    @Override public int faceOf(int piece) { return DiceValues.face(piece, DICE_BASE); }
     /** 点数 → 骰子棋子值 */
-    public static int pieceForFace(int face) { return DICE_BASE + Math.clamp(face, 1, 6); }
+    @Override public int pieceForFace(int face) { return DiceValues.encode(DICE_BASE, face); }
 
     // ── 一格多颗（堆叠）──
 
@@ -246,6 +255,52 @@ public class FlightChessLogic implements BoardGameLogic {
      * 缩放必须 ≤0.2 才不会互相压住；取 0.18 留一点间隙。
      */
     @Override public float pieceScale() { return 0.18f; }
+
+    // 模型（骰子 / 四色飞机 + 飞机图标）在 client.renderer.PieceModels 里登记 ——
+    // 不放这里是为了让规则类保持纯 Java，能脱离 Minecraft 跑 jshell 自测。
+    // 下面这几个是纯数值的度量，留在这里没问题。
+
+    // 骰子的缩放与轴心取自 DiceBoard 的默认值（满方块模型 0..16 缩到 4/16，
+    // 几何中心是方块正中 0.5 —— 三个轴一个数，不会像角落小立方体那样换算错，踩过）
+
+    @Override
+    public float modelScale(int piece) {
+        return isDice(piece) ? pieceScale() * diceModelScale() : pieceScale();
+    }
+
+    @Override public float modelCenterX(int piece) { return isDice(piece) ? dicePivot() : pieceCenterX() / 16f; }
+    @Override public float modelCenterY(int piece) { return isDice(piece) ? dicePivot() : 0f; }
+    @Override public float modelCenterZ(int piece) { return isDice(piece) ? dicePivot() : pieceCenterZ() / 16f; }
+
+    /**
+     * 四队各一个槽；<b>骰子不吃皮肤</b>（走本模组自己的点数贴图）。
+     * 必须先判骰子 —— {@code side()} 对骰子返回 0，不判就会误映射到红队槽。
+     */
+    @Override public int skinSlot(int piece) {
+        return isDice(piece) ? NO_SKIN_SLOT : SkinData.SLOT_FLIGHT_RED + side(piece);
+    }
+
+    @Override public int[] skinSlots() {
+        return new int[]{SkinData.SLOT_BOARD, SkinData.SLOT_FLIGHT_RED, SkinData.SLOT_FLIGHT_YELLOW,
+                SkinData.SLOT_FLIGHT_BLUE, SkinData.SLOT_FLIGHT_GREEN};
+    }
+
+    @Override
+    public List<StartAction> startActions() {
+        return List.of(new StartAction("和平开局", "peacefulstart"));
+    }
+
+    /** 和平开局：异阵营共格堆叠、永不发生吃子。规则模式标志由框架落盘（FLAGGED） */
+    @Override
+    public Start startBoard(int[] pieces, String mode, Consumer<int[]> historyPush) {
+        if ("peacefulstart".equals(mode)) {
+            initBoard(pieces);
+            return Start.FLAGGED;
+        }
+        if (!"reset".equals(mode)) return Start.UNSUPPORTED;
+        initBoard(pieces);
+        return Start.PLAIN;
+    }
     @Override public float gridSpan() { return span; }
     @Override public float gridOffsetX() { return offset; }
     @Override public float gridOffsetZ() { return offset; }
@@ -261,7 +316,7 @@ public class FlightChessLogic implements BoardGameLogic {
     /** 中央骰子格不能落子 */
     @Override
     public boolean isBlocked(int row, int col) {
-        return idx(row, col) == DICE_CELL;
+        return idx(row, col) == diceCell();
     }
 
     @Override
@@ -291,10 +346,7 @@ public class FlightChessLogic implements BoardGameLogic {
     public ClickResult onClick(int[] pieces, BoardGameLogic.Selection sel, int clickRow, int clickCol, boolean peaceful) {
         int cell = idx(clickRow, clickCol);
         // 点骰子 → 掷一次；面直接写进 pieces，走正常的同步/烘焙路径
-        if (cell == DICE_CELL) {
-            pieces[cell] = pieceForFace(ThreadLocalRandom.current().nextInt(1, 7));
-            return new ClickResult.Roll();
-        }
+        if (roll(pieces, cell)) return new ClickResult.Roll();
         if (isBlocked(clickRow, clickCol)) return new ClickResult.None();
 
         int clickValue = pieces[cell];

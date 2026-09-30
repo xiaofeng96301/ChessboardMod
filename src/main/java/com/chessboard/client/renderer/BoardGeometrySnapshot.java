@@ -1,6 +1,6 @@
 package com.chessboard.client.renderer;
 
-import com.chessboard.game.BoardGameLogic;
+import com.chessboard.api.BoardGameLogic;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;

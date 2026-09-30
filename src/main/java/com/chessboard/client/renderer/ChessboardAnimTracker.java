@@ -1,9 +1,8 @@
 package com.chessboard.client.renderer;
 
 import com.chessboard.blockentity.ChessboardBlockEntity;
-import com.chessboard.game.BoardGameLogic;
-import com.chessboard.game.ChineseChessLogic;
-import com.chessboard.game.FlightChessLogic;
+import com.chessboard.api.BoardGameLogic;
+import com.chessboard.api.DiceBoard;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.SectionPos;
@@ -35,9 +34,6 @@ public final class ChessboardAnimTracker {
 
     /** 五子棋连五胜利动画总时长（毫秒） */
     public static final int WIN_ANIM_MS = 1500;
-
-    /** 飞行棋骰子翻滚动画总时长（毫秒） */
-    public static final int DICE_ROLL_MS = 900;
 
     private final Map<BlockPos, BoardAnim> boards = new HashMap<>();
 
@@ -114,21 +110,17 @@ public final class ChessboardAnimTracker {
             a.fromCol = mv.isEmpty() ? -1 : mv.fromCell() % cols;
             a.toRow = mv.isEmpty() ? -1 : mv.toCell() / cols;
             a.toCol = mv.isEmpty() ? -1 : mv.toCell() % cols;
-            // 暗棋翻面：prev 为暗棋、now 为明棋
+            // 暗棋翻面：由棋类自己认（BoardGameLogic#isFlipTransition），这里不再 instanceof
             a.flipRow = a.flipCol = -1;
-            if (g instanceof ChineseChessLogic) {
-                for (int i = 0; i < total; i++) {
-                    if (ChineseChessLogic.isHidden(a.prevPieces[i])
-                            && !ChineseChessLogic.isHidden(pieces[i])
-                            && a.prevPieces[i] != pieces[i]) {
-                        a.flipRow = i / g.cols(); a.flipCol = i % g.cols(); a.flipMs = now;
-                        break;
-                    }
+            for (int i = 0; i < total; i++) {
+                if (g.isFlipTransition(a.prevPieces[i], pieces[i])) {
+                    a.flipRow = i / g.cols(); a.flipCol = i % g.cols(); a.flipMs = now;
+                    break;
                 }
             }
-            // 飞行棋：骰子点数变了 → 播翻滚动画
-            if (g instanceof FlightChessLogic
-                    && a.prevPieces[FlightChessLogic.DICE_CELL] != pieces[FlightChessLogic.DICE_CELL]) {
+            // 骰子点数变了 → 播翻滚动画（哪个格是骰子、动画多长都问 DiceBoard）
+            if (g instanceof DiceBoard db
+                    && a.prevPieces[db.diceCell()] != pieces[db.diceCell()]) {
                 a.rollMs = now;
             }
             a.moveMs = now;
@@ -173,10 +165,9 @@ public final class ChessboardAnimTracker {
         mark(d, a.toRow, a.toCol, cols, a.moveMs + g.pieceMoveMs(), now);
         // 暗棋翻面
         mark(d, a.flipRow, a.flipCol, cols, a.flipMs + g.pieceFlipMs(), now);
-        // 飞行棋骰子翻滚：中央格交还给渲染器逐帧画
-        if (g instanceof FlightChessLogic) {
-            mark(d, FlightChessLogic.DICE_CELL / cols, FlightChessLogic.DICE_CELL % cols,
-                    cols, a.rollMs + DICE_ROLL_MS, now);
+        // 骰子翻滚：骰子格交还给渲染器逐帧画
+        if (g instanceof DiceBoard db) {
+            mark(d, db.diceCell() / cols, db.diceCell() % cols, cols, a.rollMs + db.diceRollMs(), now);
         }
         // 连五胜利：整条连线一起动
         if (a.winCells != null && a.winMs + WIN_ANIM_MS > now) {
