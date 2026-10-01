@@ -128,9 +128,10 @@ public class BoardSkinScreen extends AbstractContainerScreen<BoardSkinMenu> {
                 })
                 .bounds(lx + RIGHT_X, ty + 6, RIGHT_W, 16).build());
 
-        // 开局方式由棋类自己报（BoardGameLogic#startActions），界面不再按棋类分派
+        // 开局方式完全由棋类自己报（BoardGameLogic#startActions）——
+        // 连「默认开局」也是其中一条，界面不再替它补一条（否则板棋那种「变体就是重开」的
+        // 棋盘会出现两条一模一样的选项）。
         List<String[]> openActions = new ArrayList<>();
-        openActions.add(new String[]{"默认开局", "reset"});
         for (BoardGameLogic.StartAction action : gameLogicOf().startActions()) {
             openActions.add(new String[]{action.label(), action.command()});
         }

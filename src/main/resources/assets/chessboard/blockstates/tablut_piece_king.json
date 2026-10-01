@@ -1,0 +1,7 @@
+{
+  "variants": {
+    "": {
+      "model": "chessboard:block/tablut_pieces_king"
+    }
+  }
+}

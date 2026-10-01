@@ -7,9 +7,15 @@
   "key.category.chessboard.chessboard": "Chessboard",
   "key.chessboard.open_menu": "Open Board Menu",
   "block.chessboard.flight_chess_board": "Aeroplane Chess",
+  "block.chessboard.tablut_board": "Tablut",
+  "block.chessboard.tafl_7_board": "Tafl 7x7",
+  "block.chessboard.tafl_11_board": "Tafl 11x11",
   "item.chessboard.variant.chinese_chessboard_frameless": "Frameless Chinese Chessboard",
   "item.chessboard.variant.chess_board_frameless": "Frameless Chess Board",
   "item.chessboard.variant.gomoku_board_frameless": "Frameless Gomoku Board",
   "item.chessboard.variant.tictactoe_board_frameless": "Frameless Tic-Tac-Toe",
-  "item.chessboard.variant.flight_chess_board_frameless": "Frameless Aeroplane Chess"
+  "item.chessboard.variant.flight_chess_board_frameless": "Frameless Aeroplane Chess",
+  "item.chessboard.variant.tafl_7_board_frameless": "Frameless Tafl 7x7",
+  "item.chessboard.variant.tablut_board_frameless": "Frameless Tablut",
+  "item.chessboard.variant.tafl_11_board_frameless": "Frameless Tafl 11x11"
 }

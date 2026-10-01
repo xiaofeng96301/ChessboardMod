@@ -7,9 +7,15 @@
   "key.category.chessboard.chessboard": "棋盘",
   "key.chessboard.open_menu": "打开棋盘菜单",
   "block.chessboard.flight_chess_board": "飞行棋",
+  "block.chessboard.tablut_board": "萨米板棋",
+  "block.chessboard.tafl_7_board": "板棋 7×7",
+  "block.chessboard.tafl_11_board": "板棋 11×11",
   "item.chessboard.variant.chinese_chessboard_frameless": "无框中国象棋棋盘",
   "item.chessboard.variant.chess_board_frameless": "无框国际象棋棋盘",
   "item.chessboard.variant.gomoku_board_frameless": "无框五子棋棋盘",
   "item.chessboard.variant.tictactoe_board_frameless": "无框井字棋棋盘",
-  "item.chessboard.variant.flight_chess_board_frameless": "无框飞行棋"
+  "item.chessboard.variant.flight_chess_board_frameless": "无框飞行棋",
+  "item.chessboard.variant.tafl_7_board_frameless": "无框板棋 7×7",
+  "item.chessboard.variant.tablut_board_frameless": "无框萨米板棋",
+  "item.chessboard.variant.tafl_11_board_frameless": "无框板棋 11×11"
 }

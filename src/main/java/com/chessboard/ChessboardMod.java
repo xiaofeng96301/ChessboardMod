@@ -9,6 +9,7 @@ import com.chessboard.api.BoardGameLogic;
 import com.chessboard.game.ChessLogic;
 import com.chessboard.game.ChineseChessLogic;
 import com.chessboard.game.FlightChessLogic;
+import com.chessboard.game.TaflLogic;
 import com.chessboard.game.GomokuLogic;
 import com.chessboard.game.TicTacToeLogic;
 import com.chessboard.menu.BoardSkinMenu;
@@ -105,6 +106,13 @@ public class ChessboardMod {
             "chess_board", ChessLogic.INSTANCE, new ChessLogic(2.0f, 12.0f));
     static final DeferredBlock<ChessboardBlock> FLIGHT_CHESS_BOARD = registerBoard(
             "flight_chess_board", FlightChessLogic.INSTANCE, new FlightChessLogic(1.115f, 13.77f));
+    // 板棋家族：7×7（爱尔兰/苏格兰）、9×9（萨米）、11×11（挪威）
+    static final DeferredBlock<ChessboardBlock> TAFL_7_BOARD = registerBoard(
+            "tafl_7_board", TaflLogic.SMALL, TaflLogic.SMALL.with(1.115f, 13.77f));
+    static final DeferredBlock<ChessboardBlock> TABLUT_BOARD = registerBoard(
+            "tablut_board", TaflLogic.NINE, TaflLogic.NINE.with(1.115f, 13.77f));
+    static final DeferredBlock<ChessboardBlock> TAFL_11_BOARD = registerBoard(
+            "tafl_11_board", TaflLogic.LARGE, TaflLogic.LARGE.with(1.115f, 13.77f));
 
     /** 棋子汉字模型方块（纯渲染用，带汉字属性） */
     public static final DeferredBlock<ChessCharBlock> CHINESE_PIECE_CHAR = BLOCKS.registerBlock(
@@ -129,6 +137,11 @@ public class ChessboardMod {
     public static final DeferredBlock<Block> GOMOKU_PIECE_GRAY = registerPiece("gomoku_piece_gray");
     public static final DeferredBlock<Block> TICTACTOE_PIECE_MODEL = registerPiece("tictactoe_piece");
 
+    // 萨米板棋棋子模型方块
+    public static final DeferredBlock<Block> TABLUT_PIECE_SWEDE = registerPiece("tablut_piece_swede");
+    public static final DeferredBlock<Block> TABLUT_PIECE_MUSCOVITE = registerPiece("tablut_piece_muscovite");
+    public static final DeferredBlock<Block> TABLUT_PIECE_KING = registerPiece("tablut_piece_king");
+
     // 国际象棋棋子模型方块
     public static final DeferredBlock<Block> CHESS_PIECE_KING = registerPiece("chess_piece_king");
     public static final DeferredBlock<Block> CHESS_PIECE_QUEEN = registerPiece("chess_piece_queen");
@@ -149,7 +162,8 @@ public class ChessboardMod {
             BLOCK_ENTITIES.register("board_game", () -> {
                 var t = new BlockEntityType<>(ChessboardBlockEntity::new,
                         Set.of(CHINESE_CHESSBOARD.get(), GOMOKU_BOARD.get(), TICTACTOE_BOARD.get(),
-                                CHESS_BOARD.get(), FLIGHT_CHESS_BOARD.get()), true);
+                                CHESS_BOARD.get(), FLIGHT_CHESS_BOARD.get(),
+                                TAFL_7_BOARD.get(), TABLUT_BOARD.get(), TAFL_11_BOARD.get()), true);
                 ChessboardBlockEntity.TYPE = t;
                 return t;
             });
@@ -160,6 +174,9 @@ public class ChessboardMod {
     static final DeferredItem<BlockItem> TICTACTOE_BOARD_ITEM = ITEMS.registerSimpleBlockItem(TICTACTOE_BOARD);
     static final DeferredItem<BlockItem> CHESS_BOARD_ITEM = ITEMS.registerSimpleBlockItem(CHESS_BOARD);
     static final DeferredItem<BlockItem> FLIGHT_CHESS_BOARD_ITEM = ITEMS.registerSimpleBlockItem(FLIGHT_CHESS_BOARD);
+    static final DeferredItem<BlockItem> TABLUT_BOARD_ITEM = ITEMS.registerSimpleBlockItem(TABLUT_BOARD);
+    static final DeferredItem<BlockItem> TAFL_7_BOARD_ITEM = ITEMS.registerSimpleBlockItem(TAFL_7_BOARD);
+    static final DeferredItem<BlockItem> TAFL_11_BOARD_ITEM = ITEMS.registerSimpleBlockItem(TAFL_11_BOARD);
 
     /**
      * 构造棋盘物品（放置/掉落/创造标签页共用）。
@@ -198,6 +215,9 @@ public class ChessboardMod {
                         addBoardVariants(output, GOMOKU_BOARD_ITEM);
                         addBoardVariants(output, TICTACTOE_BOARD_ITEM);
                         addBoardVariants(output, FLIGHT_CHESS_BOARD_ITEM);
+                        addBoardVariants(output, TAFL_7_BOARD_ITEM);
+                        addBoardVariants(output, TABLUT_BOARD_ITEM);
+                        addBoardVariants(output, TAFL_11_BOARD_ITEM);
                     })
                     .build());
 
@@ -300,6 +320,15 @@ public class ChessboardMod {
                         .then(boardCommand("randomstart", "已随机开局", ChessboardBlockEntity::randomStart))
                         .then(boardCommand("peacefulstart", "已和平开局", ChessboardBlockEntity::peacefulStart))
                         .then(boardCommand("reset", "棋盘已重置", ChessboardBlockEntity::resetBoard))
+                        // 板棋家族的「开局方式」：下拉里选变体 → 发同名命令 → start(mode)
+                        .then(boardCommand("tablut", "已按萨米板棋开局", "这块棋盘不是板棋",
+                                be -> be.start("tablut")))
+                        .then(boardCommand("brandubh", "已按爱尔兰板棋开局", "这块棋盘不支持这种开局",
+                                be -> be.start("brandubh")))
+                        .then(boardCommand("ardri", "已按苏格兰板棋开局", "这块棋盘不支持这种开局",
+                                be -> be.start("ardri")))
+                        .then(boardCommand("hnefatafl", "已按挪威板棋开局", "这块棋盘不支持这种开局",
+                                be -> be.start("hnefatafl")))
                         .then(Commands.literal("import")
                                 .then(Commands.argument("x", IntegerArgumentType.integer())
                                         .then(Commands.argument("y", IntegerArgumentType.integer())

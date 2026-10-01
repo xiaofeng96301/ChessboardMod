@@ -4,6 +4,7 @@ import com.chessboard.SkinData;
 import com.chessboard.api.BoardGameLogic;
 
 import java.util.Arrays;
+import java.util.List;
 
 /**
  * 国际象棋规则：8×8 棋盘，白/黑双方各 16 枚棋子。
@@ -57,6 +58,11 @@ public class ChessLogic implements BoardGameLogic {
     }
 
     @Override public float pieceScale() { return 0.6f; }
+
+    /** 只有默认开局 */
+    @Override public List<StartAction> startActions() {
+        return List.of(new StartAction("默认开局", "reset"));
+    }
 
     @Override public float pieceCenterX() { return 1f; }
     @Override public float pieceCenterZ() { return 1f; }

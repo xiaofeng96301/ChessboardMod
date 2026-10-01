@@ -43,7 +43,11 @@ public final class SkinData {
     public static final int SLOT_FLIGHT_YELLOW = 8;
     public static final int SLOT_FLIGHT_BLUE = 9;
     public static final int SLOT_FLIGHT_GREEN = 10;
-    public static final int SLOT_COUNT = 11;
+    /** 萨米板棋：护王方（瑞典，含国王） */
+    public static final int SLOT_TABLUT_SWEDE = 11;
+    /** 萨米板棋：捉王方（莫斯科） */
+    public static final int SLOT_TABLUT_MUSCOVITE = 12;
+    public static final int SLOT_COUNT = 13;
 
     /** 该棋子不吃皮肤（井字棋走自己的贴图、骰子走本模组贴图）—— 与框架接口同源 */
     public static final int NO_SLOT = BoardGameLogic.NO_SKIN_SLOT;
@@ -83,6 +87,8 @@ public final class SkinData {
             case SLOT_FLIGHT_YELLOW -> "黄队";
             case SLOT_FLIGHT_BLUE -> "蓝队";
             case SLOT_FLIGHT_GREEN -> "绿队";
+            case SLOT_TABLUT_SWEDE -> "护王方";
+            case SLOT_TABLUT_MUSCOVITE -> "捉王方";
             default -> "样式";
         };
     }

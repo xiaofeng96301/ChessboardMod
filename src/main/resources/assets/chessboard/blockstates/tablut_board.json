@@ -1,0 +1,36 @@
+{
+  "variants": {
+    "facing=south,frameless=false": {
+      "model": "chessboard:block/tablut_board",
+      "y": 0
+    },
+    "facing=west,frameless=false": {
+      "model": "chessboard:block/tablut_board",
+      "y": 90
+    },
+    "facing=north,frameless=false": {
+      "model": "chessboard:block/tablut_board",
+      "y": 180
+    },
+    "facing=east,frameless=false": {
+      "model": "chessboard:block/tablut_board",
+      "y": 270
+    },
+    "facing=south,frameless=true": {
+      "model": "chessboard:block/tablut_board_frameless",
+      "y": 0
+    },
+    "facing=west,frameless=true": {
+      "model": "chessboard:block/tablut_board_frameless",
+      "y": 90
+    },
+    "facing=north,frameless=true": {
+      "model": "chessboard:block/tablut_board_frameless",
+      "y": 180
+    },
+    "facing=east,frameless=true": {
+      "model": "chessboard:block/tablut_board_frameless",
+      "y": 270
+    }
+  }
+}

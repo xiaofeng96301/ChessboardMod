@@ -104,7 +104,8 @@ public class ChineseChessLogic implements BoardGameLogic {
 
     @Override
     public List<StartAction> startActions() {
-        return List.of(new StartAction("暗棋开局", "darkstart"),
+        return List.of(new StartAction("默认开局", "reset"),
+                new StartAction("暗棋开局", "darkstart"),
                 new StartAction("全暗棋开局", "fulldarkstart"));
     }
 

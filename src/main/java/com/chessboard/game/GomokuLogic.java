@@ -69,7 +69,8 @@ public class GomokuLogic implements PlaceGameLogic {
 
     @Override
     public List<StartAction> startActions() {
-        return List.of(new StartAction("随机开局", "randomstart"));
+        return List.of(new StartAction("默认开局", "reset"),
+                new StartAction("随机开局", "randomstart"));
     }
 
     /** 随机开局：摆 3~10 颗灰色障碍子；<b>逐颗</b>推历史，悔棋时也逐颗回退（与改前一致） */

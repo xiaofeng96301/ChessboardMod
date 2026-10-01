@@ -1,6 +1,7 @@
 package com.chessboard.game;
 
 import java.util.Arrays;
+import java.util.List;
 
 /**
  * 井字棋规则：3×3 棋盘，O 先 X 后，轮流落子。
@@ -39,6 +40,11 @@ public class TicTacToeLogic implements PlaceGameLogic {
     // 模型（两方共用，X 方靠 pieceFlipX 翻面）在 client.renderer.PieceModels 里登记 ——
     // 不放这里是为了让规则类保持纯 Java，能脱离 Minecraft 跑 jshell 自测。
     @Override public float pieceScale() { return 0.55f; }
+
+    /** 只有默认开局 */
+    @Override public List<StartAction> startActions() {
+        return List.of(new StartAction("默认开局", "reset"));
+    }
     @Override public float pieceCenterX() { return 3.5f; }
     @Override public float pieceCenterZ() { return 3.5f; }
     @Override public float gridSpan() { return span; }

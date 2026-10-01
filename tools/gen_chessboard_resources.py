@@ -40,6 +40,9 @@ BOARDS = {
     "gomoku_board": "gomoku_board",
     "tictactoe_board": "tictactoe_board",
     "flight_chess_board": "flight_chess_board",
+    "tafl_7_board": "tafl_7_board",
+    "tablut_board": "tablut_board",
+    "tafl_11_board": "tafl_11_board",
 }
 
 # ── 棋子：blockstate 名 → 模型名（不含命名空间）──
@@ -63,6 +66,9 @@ PIECES = {
     "chess_piece_rook_white": "chess_car_white",
     "chess_piece_pawn": "chess_soldier",
     "chess_piece_pawn_white": "chess_soldier_white",
+    "tablut_piece_swede": "tablut_pieces_swede",
+    "tablut_piece_muscovite": "tablut_pieces_muscovite",
+    "tablut_piece_king": "tablut_pieces_king",
 }
 
 # 老系统的 12 种材质名。只用来**识别并删除**遗留的变体模型文件，新资源不再引用它们。

@@ -287,7 +287,8 @@ public class FlightChessLogic implements BoardGameLogic, DiceBoard {
 
     @Override
     public List<StartAction> startActions() {
-        return List.of(new StartAction("和平开局", "peacefulstart"));
+        return List.of(new StartAction("默认开局", "reset"),
+                new StartAction("和平开局", "peacefulstart"));
     }
 
     /** 和平开局：异阵营共格堆叠、永不发生吃子。规则模式标志由框架落盘（FLAGGED） */

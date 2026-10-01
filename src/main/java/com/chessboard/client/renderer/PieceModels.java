@@ -12,6 +12,7 @@ import com.chessboard.game.ChessLogic;
 import com.chessboard.game.ChineseChessLogic;
 import com.chessboard.game.FlightChessLogic;
 import com.chessboard.game.GomokuLogic;
+import com.chessboard.game.TaflLogic;
 import com.chessboard.game.TicTacToeLogic;
 import net.minecraft.world.level.block.state.BlockState;
 
@@ -90,6 +91,13 @@ public interface PieceModels {
 
         // 井字棋：两方共用同一个模型，X 方靠 pieceFlipX 翻面
         register(m, TicTacToeLogic.class, (g, piece) -> ChessboardMod.TICTACTOE_PIECE_MODEL.get().defaultBlockState());
+
+        // 板棋家族（7×7 / 9×9 / 11×11 三块棋盘共用同一套棋子）：护王兵 / 捉王兵 / 国王
+        register(m, TaflLogic.class, (g, piece) -> switch (piece) {
+            case TaflLogic.MUSCOVITE -> ChessboardMod.TABLUT_PIECE_MUSCOVITE.get().defaultBlockState();
+            case TaflLogic.KING -> ChessboardMod.TABLUT_PIECE_KING.get().defaultBlockState();
+            default -> ChessboardMod.TABLUT_PIECE_SWEDE.get().defaultBlockState();
+        });
 
         // 飞行棋：中央格是骰子（FACE 属性决定点数），其余格是四色飞机；飞机再叠一层图标
         register(m, FlightChessLogic.class, new PieceModels() {
