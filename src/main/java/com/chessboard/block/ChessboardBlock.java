@@ -3,6 +3,7 @@ package com.chessboard.block;
 import com.chessboard.ChessboardMod;
 import com.chessboard.blockentity.ChessboardBlockEntity;
 import com.chessboard.api.BoardGameLogic;
+import com.chessboard.api.DiceBoard;
 import com.chessboard.game.ChineseChessLogic;
 import com.mojang.serialization.MapCodec;
 import net.minecraft.core.BlockPos;
@@ -63,6 +64,40 @@ public class ChessboardBlock extends BaseEntityBlock {
     private static final VoxelShape SHAPE_FRAMED = Shapes.box(0, 0, 0, 1, 1.0 / 16.0, 1);
     private static final VoxelShape SHAPE_FRAMELESS = Shapes.box(0.5 / 16.0, 0, 0.5 / 16.0, 15.5 / 16.0, 1.0 / 16.0, 15.5 / 16.0);
 
+    /*
+     * 骰子格上的小突起。
+     *
+     * 棋盘本体是 1/16 厚的薄板，而骰子是<b>画出来的模型</b>（FlightDiceBlock 从不真正放置），
+     * 立在板面上：整方块模型 × (pieceScale × diceModelScale) = 16 × 0.18 × 0.25 ≈ 0.045 方块
+     * （≈ 0.72/16，比一格还小），顶面在 1/16 + 0.045 ≈ 1.7/16 那儿。
+     *
+     * 于是原先只有薄板能被打到：瞄准骰子时射线要么从它头顶掠过去，要么穿到它<b>后面那一格</b>
+     * —— 骰子那一格反倒最难点。所以在骰子格上给交互形状补一块小突起，射线就能打在骰子身上；
+     * 再用 {@link #hitsDiceBump} 那条「命中点高过薄板 ⇒ 就是骰子格」把行列判回来。
+     *
+     * 只改 getShape（选择框 + 射线），不动 getCollisionShape —— 否则玩家会撞在这块突起上、
+     * 甚至站上去（vanilla 的默认碰撞形状就是 state.getShape()，26.1.2 的 BlockBehaviour 里写着）。
+     *
+     * 突起是竖着的方块，<b>侧面也是竖直的</b>，而右键侧面是「开皮肤菜单」的手势
+     * （MultiPlayerGameModeMixin），所以那个 mixin 也要拿 {@link #hitsDiceBump} 排掉它，
+     * 否则右键骰子会弹 GUI 而不是掷骰子。
+     */
+
+    /** 突起半宽：骰子本体 0.72/16 见方，两边各放宽到半格（= 一格宽），刚好盖住还不抢旁边格子 */
+    private static final float DICE_BUMP_HALF = 0.5f / 16.0f;
+    /** 突起高度：骰子顶面约 1.7/16，这里到 1.5/16（最顶上那一线可能漏过去，可接受） */
+    private static final float DICE_BUMP_TOP = 1.5f / 16.0f;
+
+    /**
+     * 命中点是不是落在骰子那块小突起上 —— 判据是「高过薄板顶面」，因为板面只有 1/16 厚，
+     * 除了突起没有任何地方够得到这个高度（没有骰子的棋盘也就永远不会命中）。
+     *
+     * <p>方块自己（{@code useItemOn}）和右键菜单的 mixin 共用这一条，改这里两边一起变。
+     */
+    public static boolean hitsDiceBump(BlockPos pos, BlockHitResult hit) {
+        return hit.getLocation().y - pos.getY() > 1.05 / 16.0;
+    }
+
     private final BoardGameLogic gameLogic;
     private final BoardGameLogic framelessLogic;
 
@@ -93,7 +128,39 @@ public class ChessboardBlock extends BaseEntityBlock {
         return defaultBlockState().setValue(FACING, ctx.getHorizontalDirection());
     }
     @Override protected VoxelShape getShape(BlockState s, BlockGetter l, BlockPos p, CollisionContext c) {
+        VoxelShape base = s.getValue(FRAMELESS) ? SHAPE_FRAMELESS : SHAPE_FRAMED;
+        VoxelShape bump = diceBump(s);
+        return bump == null ? base : Shapes.or(base, bump);
+    }
+
+    /**
+     * 碰撞形状永远是那块薄板 —— 骰子的小突起只是给射线和选择框用的。
+     *
+     * <p>必须显式覆写：vanilla 的默认实现是 {@code hasCollision ? state.getShape(...) : empty()}，
+     * 不覆写就会连带把突起变成实体障碍（玩家撞上去、还能站上去）。
+     */
+    @Override protected VoxelShape getCollisionShape(BlockState s, BlockGetter l, BlockPos p, CollisionContext c) {
         return s.getValue(FRAMELESS) ? SHAPE_FRAMELESS : SHAPE_FRAMED;
+    }
+
+    /** 骰子格上的小突起（方块自己的坐标轴）；这块棋盘没有骰子就返回 null */
+    private VoxelShape diceBump(BlockState state) {
+        float[] center = diceBumpCenter(state);
+        if (center == null) return null;
+        return Shapes.box(center[0] - DICE_BUMP_HALF, 0, center[1] - DICE_BUMP_HALF,
+                center[0] + DICE_BUMP_HALF, DICE_BUMP_TOP, center[1] + DICE_BUMP_HALF);
+    }
+
+    /** 骰子格格心在方块坐标里的 (x, z)；这块棋盘没有骰子就返回 null */
+    private float[] diceBumpCenter(BlockState state) {
+        BoardGameLogic g = getGameLogic(state);
+        if (!(g instanceof DiceBoard dice)) return null;
+        int cell = dice.diceCell();
+        if (cell < 0 || cell >= g.rows() * g.cols()) return null;
+        // 格心是模型坐标（colPixel/rowPixel 是 0..16 的像素坐标，除 16 得方块坐标），
+        // 再按朝向转到方块自己的坐标轴 —— 骰子摆在正中时四个朝向其实一样，不特殊对待。
+        return modelToWorld(g.colPixel(cell % g.cols()) / 16f,
+                g.rowPixel(cell / g.cols()) / 16f, state.getValue(FACING));
     }
     @Override public BlockEntity newBlockEntity(BlockPos pos, BlockState state) {
         return new ChessboardBlockEntity(pos, state);
@@ -130,10 +197,37 @@ public class ChessboardBlock extends BaseEntityBlock {
         BlockEntity be = level.getBlockEntity(pos);
         if (!(be instanceof ChessboardBlockEntity board)) return InteractionResult.FAIL;
 
-        int[] rc = worldToModel(hit.getLocation().x - pos.getX(),
-                hit.getLocation().z - pos.getZ(), state.getValue(FACING), board.gameLogic());
+        int[] rc = hitCell(state.getValue(FACING), hit, pos, board.gameLogic());
         board.handleClick(rc[0], rc[1]); // row, col
         return InteractionResult.SUCCESS;
+    }
+
+    /**
+     * 命中点 → 棋盘行列（{@code {row, col}}）。骰子那块凸起的兜底在这里：打在高过薄板的突起上
+     * 就直接算骰子格，否则瞄立在板上的骰子时，按「最近邻格」判出来的行列会落到它<b>后面那一格</b>。
+     */
+    private static int[] hitCell(Direction facing, BlockHitResult hit, BlockPos pos, BoardGameLogic g) {
+        int[] rc = worldToModel(hit.getLocation().x - pos.getX(),
+                hit.getLocation().z - pos.getZ(), facing, g);
+        if (hitsDiceBump(pos, hit)) {
+            int cell = g instanceof DiceBoard dice ? dice.diceCell() : -1;
+            if (cell >= 0 && cell < g.rows() * g.cols()) rc = new int[]{cell / g.cols(), cell % g.cols()};
+        }
+        return rc;
+    }
+
+    /**
+     * 棋盘模型坐标（{@code mx}/{@code mz} 是 0..1 的方块坐标，和 {@link #worldToModel} 同一套轴）
+     * → 方块自己的坐标。就是客户端 ChessboardPieceGeometry#gridPos 的同一条映射
+     * （{@link #worldToModel} 是它的逆）—— 那边有 vanilla 字节码的依据，改这里必须同时改那边。
+     */
+    private static float[] modelToWorld(float mx, float mz, Direction facing) {
+        return switch (facing) {
+            case WEST -> new float[]{1 - mz, mx};
+            case NORTH -> new float[]{1 - mx, 1 - mz};
+            case EAST -> new float[]{mz, 1 - mx};
+            default -> new float[]{mx, mz};
+        };
     }
 
     /** 世界坐标 → 棋盘行列（返回 {row, col}，匹配 rowPixel/colPixel） */

@@ -108,11 +108,11 @@ public class ChessboardMod {
             "flight_chess_board", FlightChessLogic.INSTANCE, new FlightChessLogic(1.115f, 13.77f));
     // 板棋家族：7×7（爱尔兰/苏格兰）、9×9（萨米）、11×11（挪威）
     static final DeferredBlock<ChessboardBlock> TAFL_7_BOARD = registerBoard(
-            "tafl_7_board", TaflLogic.SMALL, TaflLogic.SMALL.with(1.115f, 13.77f));
+            "tafl_7_board", TaflLogic.SMALL, TaflLogic.SMALL.frameless());
     static final DeferredBlock<ChessboardBlock> TABLUT_BOARD = registerBoard(
-            "tablut_board", TaflLogic.NINE, TaflLogic.NINE.with(1.115f, 13.77f));
+            "tablut_board", TaflLogic.NINE, TaflLogic.NINE.frameless());
     static final DeferredBlock<ChessboardBlock> TAFL_11_BOARD = registerBoard(
-            "tafl_11_board", TaflLogic.LARGE, TaflLogic.LARGE.with(1.115f, 13.77f));
+            "tafl_11_board", TaflLogic.LARGE, TaflLogic.LARGE.frameless());
 
     /** 棋子汉字模型方块（纯渲染用，带汉字属性） */
     public static final DeferredBlock<ChessCharBlock> CHINESE_PIECE_CHAR = BLOCKS.registerBlock(

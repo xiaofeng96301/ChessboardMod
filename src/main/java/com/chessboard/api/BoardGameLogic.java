@@ -165,6 +165,7 @@ public interface BoardGameLogic {
     /** 棋子模型基础高度（格，默认 1/16 = 0.0625） */
     default float pieceHeight() { return 1f / 16f; }
 
+
     /** 文字在棋子上表面的抬高量（格，默认 0.02） */
     default float pieceTextHeight() { return 0.02f; }
     /** 文字左右偏移（像素，默认 0.5） */

@@ -256,8 +256,7 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
                 renderPiece(ps, collector, s, region, wx, wz, s.logic.pieceLift() * (1f - s.moveT),
                         p, 0, 0);
             }
-        }
-    }
+        }    }
 
     /** 绘制一颗棋子：圆片模型 + 其上的汉字/图标贴图（与棋子共用变换链，只是朝向按文字规则） */
     private void renderPiece(PoseStack ps, SubmitNodeCollector cc, ChessboardRenderState s,

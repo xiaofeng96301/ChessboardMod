@@ -15,8 +15,9 @@ import java.util.function.Consumer;
  * 差别只在<b>棋盘尺寸</b>与<b>开局摆法</b>。所以这里是一个类、三块棋盘（7×7 / 9×9 / 11×11），
  * 尺寸内的不同摆法做成「开局方式」下拉里的选项（见 {@link Variant}）。
  *
- * <p><b>和其它棋类一样，只做棋盘与开局摆放，不判定走法</b>：棋子可以自由走到任意格。
- * 真实规则（车走法、夹吃、四面围王、王到边缘/角落即胜）以后要做再说，位置信息都在开局里备好了。
+ * <p><b>做棋盘、开局摆放、夹击吃子</b>；走法仍是「任意格 → 任意空格」，没有车行/跳子的限制，
+ * 也没有胜负判定。真实规则里剩下的那些（车走法、王要四面围死、王座与四角当「墙」参与夹击、
+ * 王逃到边角即胜）以后要做再说，位置信息都在开局里备好了。
  *
  * <p>坐标用记谱表示：列 a–i(–k) 从左到右，行 1–n 从下到上；棋盘第 0 行在<b>下方</b>，
  * 所以记谱行 {@code rank} 对应数组行 {@code size - rank}。
@@ -45,12 +46,26 @@ public class TaflLogic implements BoardGameLogic {
         }
     }
 
-    /** 7×7：爱尔兰 / 苏格兰板棋 */
-    public static final TaflLogic SMALL = new TaflLogic(7, new Variant[]{Variant.BRANDUBH, Variant.ARD_RI}, 1f, 14f);
-    /** 9×9：萨米板棋 */
-    public static final TaflLogic NINE = new TaflLogic(9, new Variant[]{Variant.TABLUT}, 1f, 14f);
-    /** 11×11：挪威板棋（威尔士板棋同尺寸同布局，差别只在胜利条件，等做了胜利条件再加） */
-    public static final TaflLogic LARGE = new TaflLogic(11, new Variant[]{Variant.HNEFATAFL}, 1f, 14f);
+    /*
+     * 板棋是「棋子摆在格子里」，所以走的是国际象棋那套格子参数，不是五子棋/象棋那套
+     * 「棋子踩在线交叉点上」的 1 / 14 —— 板棋若用它，格子会撑到贴图外沿、外圈边框整条消失。
+     * 换算：8 像素 = 1 单位，格心落在 offset + 格宽·k（k = 0 … n−1）。
+     *
+     * 下面三组 offset/span 是照着三张**手绘贴图**量出来的格心位置，不是一条统一公式：
+     * 作者按整数格画的（7×7 每格 16 像素、9×9 12 像素、11×11 10 像素），只有 7×7 的
+     * 16×7 正好铺满中间那 112 像素（8..120），另两张分别只有 108 / 110 像素宽。
+     * 所以别拿「1 + 7/n」去套；贴图重画过就要重新量，并同步改 check_tafl_start.jsh 里钉住的数。
+     */
+
+    /** 7×7：爱尔兰 / 苏格兰板棋（格心 16..112 像素，格子正好铺满 8..120） */
+    public static final TaflLogic SMALL = new TaflLogic(7, new Variant[]{Variant.BRANDUBH, Variant.ARD_RI},
+            2.0f, 12.0f);
+    /** 9×9：萨米板棋（12 像素一格，格心 15.5..111.5 像素） */
+    public static final TaflLogic NINE = new TaflLogic(9, new Variant[]{Variant.TABLUT},
+            15.5f / 8f, (111.5f - 15.5f) / 8f);
+    /** 11×11：挪威板棋（10 像素一格，格心 13.5..113.5 像素；威尔士板棋同尺寸同布局，等做了胜利条件再加） */
+    public static final TaflLogic LARGE = new TaflLogic(11, new Variant[]{Variant.HNEFATAFL},
+            13.5f / 8f, (113.5f - 13.5f) / 8f);
 
     /** 护王方（瑞典/浅色，side 0）的兵 */
     public static final int SWEDE = 1;
@@ -82,6 +97,21 @@ public class TaflLogic implements BoardGameLogic {
     public TaflLogic with(float offset, float span) {
         return new TaflLogic(size, variants, offset, span);
     }
+
+    /**
+     * 无框变体：同一个棋盘、摆到没有木框的那块薄板上。
+     *
+     * <p>无框模型把贴图的 3..125 像素铺在 0.5..15.5 的面上（带框模型铺的是 0..16 / 0..16），
+     * 所以同一个<b>像素</b>位置要换算一次坐标，棋子和贴图格子才对得上。
+     * 这条换算反推其它棋盘也对得上：国际象棋 1.9/12.2 → 2.0/12.0，五子棋 1/14 → 1.115/13.77。
+     */
+    public TaflLogic frameless() {
+        float first = pixelToFrameless(offset);
+        return with(first, pixelToFrameless(offset + span) - first);
+    }
+
+    /** 带框坐标 g（16 单位制）→ 无框坐标：先换像素再按无框模型的面重新铺 */
+    private static float pixelToFrameless(float g) { return 0.5f + (8f * g - 3f) * 15f / 122f; }
 
     @Override public int rows() { return size; }
     @Override public int cols() { return size; }
@@ -179,10 +209,56 @@ public class TaflLogic implements BoardGameLogic {
     @Override public String pieceName(int piece) { return ""; }
     @Override public int textColor(int piece) { return 0; }
 
-    /** 不限定规则：空点选子、点空格/敌方走过去（框架的默认走子），不做任何合法性判定 */
+    /**
+     * 板棋走子：空点选子、点自己人换选/放下、点空格走子 —— 这些沿用框架那套。
+     *
+     * <p>只有吃子换成了板棋的规则：<b>不能走到有棋子的格子上</b>（没有象棋/国际象棋那种
+     * 「踩上去吃掉」），吃子只看落子之后的夹击，见 {@link #capture}。
+     *
+     * <p>走法本身仍是「任意格 → 任意空格」，没限定车行、跳子与距离。
+     */
     @Override
     public ClickResult onClick(int[] pieces, int selRow, int selCol, int clickRow, int clickCol) {
-        return onClickMove(pieces, selRow, selCol, clickRow, clickCol);
+        int target = pieces[idx(clickRow, clickCol)];
+        if (selRow >= 0 && target != 0 && side(target) != side(pieces[idx(selRow, selCol)])) {
+            // 抬着棋子点敌子：板棋不吃这一套。这一下什么都不做，棋子还举着，方便换个落点
+            return new ClickResult.None();
+        }
+        ClickResult r = onClickMove(pieces, selRow, selCol, clickRow, clickCol);
+        if (r instanceof ClickResult.Move moved) capture(pieces, moved.toRow(), moved.toCol());
+        return r;
+    }
+
+    /** 四个正交方向（板棋只按上下左右夹） */
+    private static final int[][] ORTHO = {{-1, 0}, {1, 0}, {0, -1}, {0, 1}};
+
+    /**
+     * 夹击吃子：刚落下的这颗棋子，看它四个正交方向上<b>紧邻</b>的敌子 —— 敌子另一侧又紧邻着
+     * 己方棋子，就是被夹死了，直接吃掉（从数组里抹掉）。
+     *
+     * <p>一次落子可能同时夹掉多颗（四个方向各一颗），所以逐个方向都查一遍。
+     * 抹掉的格子由调用方（方块实体）按「前后两代棋盘的差异」记进历史，所以照样能悔棋。
+     *
+     * <p><b>还没做</b>（真实规则里都有，需要的话再说）：王的四面围死、王座与四角当「墙」参与夹击、
+     * 王逃到边角即胜 / 王被吃即负这类胜负判定 —— 现在王跟普通棋子一样，两颗夹住就没了。
+     */
+    private void capture(int[] pieces, int row, int col) {
+        int mine = side(pieces[idx(row, col)]);
+        for (int[] d : ORTHO) {
+            int r = row + d[0], c = col + d[1];
+            if (!inside(r, c)) continue;
+            int victim = pieces[idx(r, c)];
+            if (victim == 0 || side(victim) == mine) continue;      // 空格或自己人，不是夹击对象
+            int r2 = r + d[0], c2 = c + d[1];
+            if (inside(r2, c2) && pieces[idx(r2, c2)] != 0 && side(pieces[idx(r2, c2)]) == mine) {
+                pieces[idx(r, c)] = 0;                              // 另一侧也是我方 → 夹死
+            }
+        }
+    }
+
+    /** 这一格在棋盘内 */
+    private boolean inside(int row, int col) {
+        return row >= 0 && row < size && col >= 0 && col < size;
     }
 
     /** 捉王方是 side 1，护王方（含国王）是 side 0 */

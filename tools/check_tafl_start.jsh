@@ -84,7 +84,36 @@ void run() {
     TaflLogic.SMALL.initBoard(brandubh, TaflLogic.Variant.BRANDUBH);
     if (!java.util.Arrays.equals(def, brandubh))
         throw new RuntimeException("7×7 的默认开局应等于第一个变体（爱尔兰板棋）");
-    System.out.println("全部通过: 四种变体的棋子数与居中王 / 四向对称 / 萨米板棋逐格");
+    // 格子参数钉死 = 三张手绘贴图上量到的格心位置（贴图像素，见 TaflLogic 顶部注释）。
+    // 贴图重画过就得重新量，并把这里的期望值一起改掉 —— 免得「参数」和「贴图」偷偷对不上，
+    // 表现就是棋子渐渐偏出格子（以前用五子棋那套 1/14 时整圈边框都没了）。
+    float[][] measured = {{7f, 16f, 112f}, {9f, 15.5f, 111.5f}, {11f, 13.5f, 113.5f}};
+    TaflLogic[] boards = {TaflLogic.SMALL, TaflLogic.NINE, TaflLogic.LARGE};
+    for (int i = 0; i < boards.length; i++) {
+        TaflLogic g = boards[i];
+        int n = g.rows();
+        float first = measured[i][1], last = measured[i][2];
+        if (Math.abs(g.gridOffsetX() - first / 8f) > 1e-4f
+                || Math.abs(g.gridOffsetX() + g.gridSpan() - last / 8f) > 1e-4f)
+            throw new RuntimeException(n + "×" + n + " 格心应为 " + first + ".." + last + " 像素，实际 "
+                    + 8f * g.gridOffsetX() + ".." + 8f * (g.gridOffsetX() + g.gridSpan()));
+        // 格子整体要居中（贴图是手工画的，允许 1 像素的取整误差）
+        if (Math.abs(8f * (g.rowPixel(0) + g.rowPixel(n - 1)) - 128f) > 1f)
+            throw new RuntimeException(n + "×" + n + " 格心没有上下居中");
+        // 无框变体：无框模型把贴图 3..125 像素铺在 0.5..15.5 的面上，
+        // 换算后落到贴图的像素位置必须和带框时一模一样（棋子和格子仍然对得上）
+        TaflLogic fl = g.frameless();
+        for (float[] pair : new float[][]{{g.gridOffsetX(), fl.gridOffsetX()},
+                                          {g.gridOffsetX() + g.gridSpan(), fl.gridOffsetX() + fl.gridSpan()}}) {
+            float withFrame = 8f * pair[0];
+            float noFrame = 3f + (pair[1] - 0.5f) * 122f / 15f;
+            if (Math.abs(withFrame - noFrame) > 0.05f)
+                throw new RuntimeException(n + "×" + n + " 无框变体落到贴图 " + noFrame
+                        + " 像素，带框是 " + withFrame);
+        }
+    }
+
+    System.out.println("全部通过: 四种变体的棋子数与居中王 / 四向对称 / 萨米板棋逐格 / 格心位置与无框换算");
 }
 
 String result;

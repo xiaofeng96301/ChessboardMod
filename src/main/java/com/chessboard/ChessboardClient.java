@@ -2,6 +2,7 @@ package com.chessboard;
 
 import com.chessboard.block.ChessboardBlock;
 import com.chessboard.blockentity.ChessboardBlockEntity;
+import com.chessboard.client.renderer.BoardOutlineSuppressor;
 import com.chessboard.client.renderer.ChessboardRenderer;
 import com.chessboard.client.renderer.ChessboardSectionGeometry;
 import com.chessboard.client.screen.BoardSkinScreen;
@@ -74,6 +75,8 @@ public class ChessboardClient {
         // 静止棋子烘焙进区块几何：数据变化时更新动画状态并重建所在区块
         ChessboardBlockEntity.clientDataHook = ChessboardSectionGeometry::onBoardDataChanged;
         NeoForge.EVENT_BUS.register(ChessboardSectionGeometry.class);
+        // 有骰子的棋盘不画选中描边：描边画的就是命中形状，会把骰子那块点击凸起一起框出来
+        NeoForge.EVENT_BUS.register(BoardOutlineSuppressor.class);
     }
 
     @SubscribeEvent
