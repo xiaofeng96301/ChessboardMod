@@ -206,6 +206,41 @@ public class TaflLogic implements BoardGameLogic {
         }
     }
 
+    /**
+     * 王被吃 → 捉王方（side 1）赢；王走到棋盘边缘或四角 → 护王方（side 0）赢。
+     * 赢家<b>全体棋子</b>跳起晃动。开局里必定有王，所以「找不到王」就等于王被吃了。
+     */
+    @Override
+    public int[] winCells(int[] pieces) {
+        int king = -1;
+        for (int i = 0; i < pieces.length; i++) {
+            if (pieces[i] == KING) { king = i; break; }
+        }
+        // 注意这里传的是「阵营」（side），不是棋子值 —— 王属于护王方（side 0）
+        int winnerSide = king < 0 ? 1 : 0;            // 没王 → 捉王方赢；有王再看是不是走到边上了
+        boolean won = king < 0;
+        if (king >= 0) {
+            int row = king / size, col = king % size;
+            won = row == 0 || row == size - 1 || col == 0 || col == size - 1;
+        }
+        if (!won) return null;
+        int[] cells = cellsOfSide(pieces, winnerSide);
+        return cells.length == 0 ? null : cells;
+    }
+
+    /** 某一方所有棋子所在格 */
+    private int[] cellsOfSide(int[] p, int s) {
+        int n = 0;
+        for (int v : p) if (v != 0 && side(v) == s) n++;
+        int[] out = new int[n];
+        int k = 0;
+        for (int i = 0; i < p.length; i++) if (p[i] != 0 && side(p[i]) == s) out[k++] = i;
+        return out;
+    }
+
+    /** 有胜利效果 → 界面上给一个开关（默认开，可关掉） */
+    @Override public boolean winToggleable() { return true; }
+
     @Override public String pieceName(int piece) { return ""; }
     @Override public int textColor(int piece) { return 0; }
 

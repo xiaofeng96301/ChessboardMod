@@ -80,6 +80,34 @@ public class ChessLogic implements BoardGameLogic {
         return onClickMove(pieces, selRow, selCol, clickRow, clickCol);
     }
 
+    /** 一方的王不在了 → 对面赢，报赢家全体棋子（表演是原地自转一圈，见 {@link #winStyle}） */
+    @Override
+    public int[] winCells(int[] pieces) {
+        boolean white = hasKing(pieces, 0), black = hasKing(pieces, 1);
+        if (white == black) return null;               // 都在或都没了（空盘）→ 不判
+        int[] cells = cellsOfSide(pieces, white ? 0 : 1);
+        return cells.length == 0 ? null : cells;
+    }
+
+    @Override public int winStyle() { return WIN_SPIN; }
+
+    private boolean hasKing(int[] p, int s) {
+        for (int v : p) if (v != 0 && side(v) == s && type(v) == KING) return true;
+        return false;
+    }
+
+    private int[] cellsOfSide(int[] p, int s) {
+        int n = 0;
+        for (int v : p) if (v != 0 && side(v) == s) n++;
+        int[] out = new int[n];
+        int k = 0;
+        for (int i = 0; i < p.length; i++) if (p[i] != 0 && side(p[i]) == s) out[k++] = i;
+        return out;
+    }
+
+    /** 有胜利效果 → 界面上给一个开关（默认开，可关掉） */
+    @Override public boolean winToggleable() { return true; }
+
     public static int pack(int side, int type) { return (side << 3) | type; }
     public static int type(int piece) { return piece & 7; }
 }

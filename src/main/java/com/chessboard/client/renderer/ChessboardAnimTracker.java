@@ -33,7 +33,7 @@ public final class ChessboardAnimTracker {
     public static final ChessboardAnimTracker INSTANCE = new ChessboardAnimTracker();
 
     /** 五子棋连五胜利动画总时长（毫秒） */
-    public static final int WIN_ANIM_MS = 1500;
+    public static final int WIN_ANIM_MS = 1100;
 
     private final Map<BlockPos, BoardAnim> boards = new HashMap<>();
 
@@ -136,8 +136,10 @@ public final class ChessboardAnimTracker {
             a.prevSelRow = selRow; a.prevSelCol = selCol;
         }
 
-        // 连五胜利（非落子类返回 null）；只在数据变化时算一次，而非每帧
-        int[] win = g.winLine(pieces);
+        // 胜利（或将军提示）要表演的格子；只在数据变化时算一次，而非每帧
+        int[] win = g.winCells(pieces);
+        // 开关是棋盘自己的属性（五子棋默认关、其余默认开），跟着方块实体同步过来
+        if (win != null && !be.winFx()) win = null;
         if (!Arrays.equals(win, a.winCells)) {
             a.winCells = win != null ? win.clone() : null;
             if (win != null) a.winMs = now;

@@ -105,7 +105,7 @@ public class GomokuLogic implements PlaceGameLogic {
 
     /** 连五检测：横向/纵向/两条对角线，返回连成 5 子的格子下标，无则 null（灰子不算） */
     @Override
-    public int[] winLine(int[] pieces) {
+    public int[] winCells(int[] pieces) {
         int[][] dirs = {{0, 1}, {1, 0}, {1, 1}, {1, -1}};
         for (int r = 0; r < ROWS; r++) {
             for (int c = 0; c < COLS; c++) {
@@ -135,4 +135,7 @@ public class GomokuLogic implements PlaceGameLogic {
     @Override public void toggleSide() { nextSide ^= 1; }
 
     @Override public void onUndo() { toggleSide(); }
+
+    /** 有连五效果 → 界面上给一个开关（新棋盘默认关，要看得自己打开） */
+    @Override public boolean winToggleable() { return true; }
 }

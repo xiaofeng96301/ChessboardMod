@@ -192,26 +192,30 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
                 boolean flipping = (s.flipRow == row && s.flipCol == col && s.flipT < 1f);
                 boolean sel = (s.selRow == row && s.selCol == col);
 
-                // 连五胜利：微微跳起 + 左右倾斜晃动（逐个错峰；0~0.35 起跳 / 0.35~0.65 悬停歪动 / 0.65~1 回落）
-                float winJump = 0, winTilt = 0;
+                // 胜利表演：默认「跳起 + 左右晃动」，国际象棋是「原地自转一圈」，
+                // 井字棋不在这里动（由下面那条黑线负责）。逐个错峰：
+                // 0~0.35 起跳 / 0.35~0.65 悬停歪动 / 0.65~1 回落
+                float winJump = 0, winTilt = 0, winSpin = 0;
                 if (s.winT < 1f && s.winCells != null) {
+                    int wi = -1;
                     for (int i = 0; i < s.winCells.length; i++) {
-                        if (s.winCells[i] == cell) {
-                            float tj = Math.clamp(s.winT * 1.3f - i * 0.07f, 0f, 1f);
-                            if (tj < 0.35f) {
-                                float k = tj / 0.35f;
-                                winJump = 0.02f * (1f - (1f - k) * (1f - k)); // easeOut 起跳
-                            } else if (tj > 0.65f) {
-                                winJump = 0.02f * (1f - (tj - 0.65f) / 0.35f); // 线性回落
-                            } else {
-                                winJump = 0.02f; // 悬停
-                            }
-                            if (tj >= 0.35f && tj < 0.65f) {
-                                float p = (tj - 0.35f) / 0.3f;
-                                // 绕底部中心左右歪一下：/ 到 \ 一个完整来回，轻微衰减
-                                winTilt = 10f * (float) Math.sin(p * Math.PI * 2f) * (1f - p * 0.5f);
-                            }
-                            break;
+                        if (s.winCells[i] == cell) { wi = i; break; }
+                    }
+                    if (wi >= 0) {
+                        // 错峰步长按格子数均分：赢家全体棋子可能有十几颗，固定 0.07 的话
+                        // 后面那些算出来永远 ≤ 0，一次都不会动。
+                        // span 让「最后一颗」在动画结束的同一刻正好走到 1 —— 否则最后一颗
+                        // 还没落回地面，动画就结束了，看上去是「直接闪回去」（落下的动画没了）。
+                        float step = Math.min(0.07f, 1f / Math.max(1, s.winCells.length));
+                        float span = 1f + step * Math.max(0, s.winCells.length - 1);
+                        float tj = Math.clamp(s.winT * span - wi * step, 0f, 1f);
+                        if (s.logic.winStyle() == BoardGameLogic.WIN_SPIN) {
+                            winSpin = 360f * tj;                        // 原地自转一圈
+                        } else {
+                            // 边跳边晃：高度走一整段正弦（起 → 落），左右晃动贯穿全程并衰减。
+                            // tj*1.4 让起跳/落地比整段动画更快，落到地面后还剩一点时间在晃
+                            winJump = 0.02f * (float) Math.sin(Math.PI * Math.min(1f, tj * 1.4f));
+                            winTilt = 10f * (float) Math.sin(tj * Math.PI * 2f) * (1f - tj * 0.6f);
                         }
                     }
                 }
@@ -236,7 +240,7 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
                     if (sel && i == s.selIdx) lift += s.lift;
                     if (!sel && s.unselRow == row && s.unselCol == col && s.unlift > 0) lift += s.unlift;
                     renderPiece(ps, collector, s, region, scratch[0], scratch[1], lift + winJump,
-                            modelPiece, flipDeg, winTilt);
+                            modelPiece, flipDeg, winTilt, winSpin);
                 }
             }
         }
@@ -254,14 +258,15 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
                 float wx = lerp(from[0], to[0], s.moveT);
                 float wz = lerp(from[1], to[1], s.moveT);
                 renderPiece(ps, collector, s, region, wx, wz, s.logic.pieceLift() * (1f - s.moveT),
-                        p, 0, 0);
+                        p, 0, 0, 0);
             }
-        }    }
+        }
+    }
 
     /** 绘制一颗棋子：圆片模型 + 其上的汉字/图标贴图（与棋子共用变换链，只是朝向按文字规则） */
     private void renderPiece(PoseStack ps, SubmitNodeCollector cc, ChessboardRenderState s,
                              BlockAndTintGetter region, float wx, float wz, float lift,
-                             int piece, float flipDeg, float winTilt) {
+                             int piece, float flipDeg, float winTilt, float winSpin) {
         // 骰子（任何实现 DiceBoard 的玩法）：翻滚 + 抛起
         DiceRoll dice = DiceRoll.IDLE;
         float hop = 0;
@@ -273,12 +278,12 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
 
         TextureAtlasSprite skin = skinFor(s, piece);
         submitModel(ps, cc, s, region, ChessboardPieceGeometry.stateFor(s.logic, piece),
-                wx, wz, y, piece, flipDeg, winTilt, dice, false, skin);
+                wx, wz, y, piece, flipDeg, winTilt, winSpin, dice, false, skin);
 
         BlockState charState = ChessboardPieceGeometry.charStateFor(s.logic, piece);
         if (charState != null) {
             // 汉字是本模组自己的贴图，皮肤不会覆盖它（skinQuad 会原样放过）
-            submitModel(ps, cc, s, region, charState, wx, wz, y, piece, flipDeg, winTilt, dice, true, skin);
+            submitModel(ps, cc, s, region, charState, wx, wz, y, piece, flipDeg, winTilt, winSpin, dice, true, skin);
         }
     }
 
@@ -316,8 +321,8 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
     private void submitModel(PoseStack ps, SubmitNodeCollector cc, ChessboardRenderState s,
                              BlockAndTintGetter region, BlockState state,
                              float wx, float wz, float lift,
-                             int piece, float flipDeg, float winTilt, DiceRoll dice, boolean textRotation,
-                             TextureAtlasSprite skin) {
+                             int piece, float flipDeg, float winTilt, float winSpin, DiceRoll dice,
+                             boolean textRotation, TextureAtlasSprite skin) {
         float y = s.logic.pieceHeight() + lift;
         float cx = ChessboardPieceGeometry.modelCenterX(s.logic, piece);
         float cy = ChessboardPieceGeometry.modelCenterY(s.logic, piece);
@@ -336,6 +341,7 @@ public class ChessboardRenderer implements BlockEntityRenderer<ChessboardBlockEn
             ChessboardPieceGeometry.rotateBy(ps, Axis.YP.rotationDegrees(180));
         }
         if (winTilt != 0) ChessboardPieceGeometry.rotateBy(ps, Axis.ZP.rotationDegrees(winTilt)); // 胜利左右歪动，绕底部中心
+        if (winSpin != 0) ChessboardPieceGeometry.rotateBy(ps, Axis.YP.rotationDegrees(winSpin)); // 胜利自转（国际象棋）
         if (flipDeg != 0) ChessboardPieceGeometry.rotateBy(ps, Axis.XP.rotationDegrees(flipDeg));
         if (s.logic.pieceFlipX(piece)) ChessboardPieceGeometry.rotateBy(ps, Axis.XP.rotationDegrees(180));
         float ry = s.logic.pieceYRotation(piece);

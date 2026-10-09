@@ -63,11 +63,20 @@ public class BoardSkinScreen extends AbstractContainerScreen<BoardSkinMenu> {
     private static final int LABEL_W = 76;
 
     private EditBox codeField;
+    /** 胜利判定开关按钮（没做胜利效果的棋类不创建） */
+    private Button winButton;
     private boolean openActive;
     private final List<Button> openOptions = new ArrayList<>();
 
     public BoardSkinScreen(BoardSkinMenu menu, Inventory playerInv, Component title) {
         super(menu, playerInv, title, IMAGE_W, IMAGE_H);
+    }
+
+    @Override
+    protected void containerTick() {
+        super.containerTick();
+        // 开关是服务端改的、同步回来要一两 tick，所以文字每 tick 刷一次
+        if (winButton != null) winButton.setMessage(winConditionLabel());
     }
 
     @Override
@@ -120,6 +129,18 @@ public class BoardSkinScreen extends AbstractContainerScreen<BoardSkinMenu> {
                     }
                 })
                 .bounds(lx + LEFT_X, ty + 96, LEFT_W, 16).build());
+
+        // 胜利判定开关：有胜利效果的棋类（除飞行棋）都有这个按钮。
+        // 开关是**棋盘自己的属性**（存盘 + 同步），所以走服务端菜单按钮，和「重置样式」一条路。
+        if (gameLogicOf().winToggleable()) {
+            winButton = Button.builder(winConditionLabel(), btn -> {
+                        if (minecraft != null && minecraft.gameMode != null) {
+                            minecraft.gameMode.handleInventoryButtonClick(menu.containerId, BoardSkinMenu.BUTTON_WIN);
+                        }
+                    })
+                    .bounds(lx + LEFT_X, ty + 118, LEFT_W, 16).build();
+            addRenderableWidget(winButton);
+        }
 
         // ── 右列：开局方式下拉 ──
         addRenderableWidget(Button.builder(Component.literal("开局方式▾"), btn -> {
@@ -239,6 +260,11 @@ public class BoardSkinScreen extends AbstractContainerScreen<BoardSkinMenu> {
 
     private static Component rightClickMenuLabel() {
         return Component.literal("右键侧面打开菜单：" + (Config.RIGHT_CLICK_OPENS_MENU.get() ? "开" : "关"));
+    }
+
+    /** 胜利判定开关按钮的文字（读棋盘自己的开关；没这个按钮时不会调） */
+    private Component winConditionLabel() {
+        return Component.literal("胜利判定：" + (menu.winFx() ? "开" : "关"));
     }
 
     private BoardGameLogic gameLogicOf() {

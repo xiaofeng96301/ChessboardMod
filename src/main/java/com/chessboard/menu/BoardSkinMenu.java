@@ -43,6 +43,8 @@ public class BoardSkinMenu extends AbstractContainerMenu {
      * {@link #applyFromSlots()}）。
      */
     public static final int BUTTON_RESET = 0;
+    /** 菜单按钮 id：切换「胜利判定」开关（棋盘自己的属性，见 {@code ChessboardBlockEntity#winFx}） */
+    public static final int BUTTON_WIN = 1;
 
     // 布局常量（相对界面左上角）。客户端和服务端用同一份，所以必须是常量。
     // 行首 y 必须排在「开局方式」下拉的选项下面（选项到 y≈60 为止），否则物品会压在选项上
@@ -97,6 +99,17 @@ public class BoardSkinMenu extends AbstractContainerMenu {
     }
 
     /** 棋盘方块实体当前存的皮肤；没有（客户端还没同步 / 方块没了）返回 null */
+    /**
+     * 这块棋盘的胜利判定开关；读不到（客户端还没同步 / 方块没了）时按棋类默认值算。
+     * 界面用它显示按钮文字。
+     */
+    public boolean winFx() {
+        if (owner != null && owner.level().getBlockEntity(boardPos) instanceof ChessboardBlockEntity be) {
+            return be.winFx();
+        }
+        return true;
+    }
+
     private String[] currentSkins() {
         if (owner == null) return null;
         return owner.level().getBlockEntity(boardPos) instanceof ChessboardBlockEntity be
@@ -180,6 +193,10 @@ public class BoardSkinMenu extends AbstractContainerMenu {
 
     @Override
     public boolean clickMenuButton(Player player, int id) {
+        if (id == BUTTON_WIN) {
+            if (owner.level().getBlockEntity(boardPos) instanceof ChessboardBlockEntity be) be.toggleWinFx();
+            return true;
+        }
         if (id != BUTTON_RESET) return false;
         // 顺序不能反：先把槽位清空（方块还给玩家），再把皮肤写回默认。
         // 槽里留着方块的话，下一 tick 的 applyFromSlots 会立刻把它们重新涂上去。

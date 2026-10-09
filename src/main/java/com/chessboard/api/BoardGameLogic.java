@@ -344,8 +344,32 @@ public interface BoardGameLogic {
     /** 悔棋时还原下子方（默认空操作，落子类覆写） */
     default void onUndo() {}
 
-    /** 胜利连线（落子类游戏）：返回连成一线（如五子连珠）的格子下标数组，无胜利返回 null */
-    default int[] winLine(int[] pieces) { return null; }
+    /** 胜利时的表演样式：跳起晃动（默认） */
+    int WIN_JUMP = 0;
+    /** 胜利时的表演样式：原地自转一圈 */
+    int WIN_SPIN = 1;
+    /**
+     * 胜利（或将军提示）要表演的格子下标；没有就返回 {@code null}。
+     *
+     * <p>返回的不一定是「连成一线」—— 中国象棋/国际象棋/板棋返回的是<b>赢家全体棋子</b>的格子
+     * （全体跳起晃动），中国象棋「帅被将军」只返回帅那一格（单独跳一下）。
+     *
+     * <p>客户端判定：{@code ChessboardAnimTracker} 每次棋子变化时算一次，变了就表演
+     * {@link com.chessboard.client.renderer.ChessboardAnimTracker#WIN_ANIM_MS} 这么久。
+     */
+    default int[] winCells(int[] pieces) { return null; }
+
+    /** 胜利时的表演样式，见 {@link #WIN_JUMP} / {@link #WIN_SPIN} */
+    default int winStyle() { return WIN_JUMP; }
+
+    /**
+     * 这个棋类有没有「胜利判定」开关（默认没有 —— 没做胜利效果的棋类不该显示一个没用的按钮）。
+     *
+     * <p>有的棋类在棋子界面里会多一个开关按钮，关掉后 {@link #winCells} 的结果被忽略。
+     * 开关是<b>棋盘自己的属性</b>：存在方块实体上、跟着棋盘存盘与同步（同 {@code peaceful}），
+     * 所以每块棋盘可以不一样。<b>新棋盘一律默认关</b>，要看得自己去界面里打开。
+     */
+    default boolean winToggleable() { return false; }
 
     /**
      * 移动类默认点击：空点选子，点同色换选，点空格或异色走子。

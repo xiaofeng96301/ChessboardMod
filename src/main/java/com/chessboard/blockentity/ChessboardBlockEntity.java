@@ -84,6 +84,15 @@ public class ChessboardBlockEntity extends BlockEntity {
      * （单架仍是 {@code 1..4}），所以<b>不需要</b>老存档迁移。
      */
     private boolean peaceful = false;
+
+    /**
+     * 这块棋盘的「胜利判定」开关：false = 不表演（{@code winCells} 的结果被忽略）。
+     *
+     * <p>同 {@link #peaceful}：规则实例是全局单例、拿不到每块棋盘的状态，所以存在方块实体上；
+     * 判定发生在客户端（{@code ChessboardAnimTracker}），所以它要跟着 {@code getUpdateTag} 同步过去。
+     * <b>一律默认关</b>，要在界面里打开；存盘 key {@code winFx}。
+     */
+    private boolean winFx = false;
     /**
      * 各槽位的皮肤（方块 ID，null = 未设 = 用模型自带贴图）。
      * 槽位含义见 {@link SkinData}：0 棋盘、1..6 各棋类阵营、7..10 飞行棋四队。
@@ -121,6 +130,15 @@ public class ChessboardBlockEntity extends BlockEntity {
     public int selIdx() { return selIdx; }
     /** 飞行棋是否和平开局（false = 默认开局）；对别的棋类没有意义 */
     public boolean isPeaceful() { return peaceful; }
+
+    /** 这块棋盘的胜利判定开关（界面上的按钮切的就是它） */
+    public boolean winFx() { return winFx; }
+
+    /** 切换胜利判定开关（服务端由菜单按钮调用），改完要同步给客户端 —— 判定在客户端做 */
+    public void toggleWinFx() {
+        winFx = !winFx;
+        notifyChange();     // 存盘 + 推给客户端（判定在客户端做）
+    }
 
     /** 某槽位的皮肤（null = 未设） */
     public String skin(int slot) { return skins[slot]; }
@@ -369,6 +387,7 @@ public class ChessboardBlockEntity extends BlockEntity {
         out.putInt("selIdx", selIdx);
         // 模式永远写：老存档靠「这个 key 在不在」判定飞行棋的老编码（见 migrateLegacyFlight）
         out.putInt("flightMode", peaceful ? 1 : 0);
+        out.putInt("winFx", winFx ? 1 : 0);
         writeSkin(out::putString);
         int size = history.size();
         out.putInt("histSize", size);
@@ -386,6 +405,7 @@ public class ChessboardBlockEntity extends BlockEntity {
         selCol = in.getIntOr("selCol", -1);
         selIdx = in.getIntOr("selIdx", 0);
         peaceful = in.getIntOr("flightMode", 0) == 1;
+        winFx = in.getIntOr("winFx", 0) == 1;               // 老存档没这个 key → 默认关
         readSkin(key -> in.getString(key).orElse(null));
         // 新 key hist2（格子增量记录）。老 key "history" 是 5-int 差值格式，读不回，丢掉即可
         int histSize = in.getIntOr("histSize", 0);
@@ -402,6 +422,7 @@ public class ChessboardBlockEntity extends BlockEntity {
         tag.putInt("selCol", selCol);
         tag.putInt("selIdx", selIdx);
         tag.putInt("flightMode", peaceful ? 1 : 0);
+        tag.putInt("winFx", winFx ? 1 : 0);
         writeSkin(tag::putString);
         return tag;
     }
@@ -415,6 +436,7 @@ public class ChessboardBlockEntity extends BlockEntity {
         selCol = in.getIntOr("selCol", -1);
         selIdx = in.getIntOr("selIdx", 0);
         peaceful = in.getIntOr("flightMode", 0) == 1;
+        winFx = in.getIntOr("winFx", 0) == 1;               // 判定在客户端做，这个开关必须同步过来
         readSkin(key -> in.getString(key).orElse(null));
         // 数据变化 → 更新动画状态并重建所在区块几何
         if (level != null && level.isClientSide()) clientDataHook.accept(this);
@@ -439,7 +461,8 @@ public class ChessboardBlockEntity extends BlockEntity {
         gameLogic().initBoard(init);
         // 皮肤 / 和平标志也算「数据」：只设了皮肤或只切了和平开局、还没落子的棋盘，
         // 挖掉后也得带着走 —— 否则玩家会发现「和平开局后一步没走，挖起来再放下就变回默认开局了」
-        boolean hasProgress = hasSkin() || peaceful || !Arrays.equals(pieces, init) || !history.isEmpty();
+        boolean hasProgress = hasSkin() || peaceful || winFx
+                || !Arrays.equals(pieces, init) || !history.isEmpty();
         if (!hasProgress) return;
 
         CompoundTag tag = new CompoundTag();
@@ -448,6 +471,7 @@ public class ChessboardBlockEntity extends BlockEntity {
         tag.putInt("selCol", selCol);
         tag.putInt("selIdx", selIdx);
         tag.putInt("flightMode", peaceful ? 1 : 0);
+        tag.putInt("winFx", winFx ? 1 : 0);
         writeSkin(tag::putString);
         tag.putInt("histSize", history.size());
         int[] flat = flattenHistory();
@@ -465,6 +489,7 @@ public class ChessboardBlockEntity extends BlockEntity {
         selCol = tag.getInt("selCol").orElse(-1);
         selIdx = tag.getInt("selIdx").orElse(0);
         peaceful = tag.getInt("flightMode").orElse(0) == 1;
+        tag.getInt("winFx").ifPresent(v -> winFx = v == 1);   // 物品上没有这个 key → 默认关
         readSkin(key -> tag.getString(key).orElse(null));
         int histSize = tag.getInt("histSize").orElse(0);
         if (histSize > 0 && tag.contains("hist2")) restoreHistory(tag.getIntArray("hist2").orElse(null));

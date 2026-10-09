@@ -155,6 +155,116 @@ public class ChineseChessLogic implements BoardGameLogic {
     public static int reveal(int piece) { return piece & ~HIDDEN_BIT; }
     public static int hide(int piece) { return piece | HIDDEN_BIT; }
 
+    // ── 胜利 / 将军提示 ──
+
+    /**
+     * 要表演的格子：
+     * <ul>
+     *   <li>一方的帅（将）不在了 → 对面赢，报赢家<b>全体棋子</b>（全体跳起晃动）；</li>
+     *   <li>否则只要有帅（将）正被攻击 → 只报那一格（帅自己跳一下，提示「将军」）。</li>
+     * </ul>
+     *
+     * <p>「被攻击」按象棋的攻击路线算（车直行、炮翻山、马别腿、兵过河能横走、帅对脸），
+     * <b>只用来提示，不参与走子合法性</b> —— 这个模组本来就不判走法。
+     * 暗棋（没翻开的）身份未知，不参与攻击判定。
+     */
+    @Override
+    public int[] winCells(int[] pieces) {
+        int redKing = findKing(pieces, 0), blackKing = findKing(pieces, 1);
+        if (redKing >= 0 && blackKing < 0) return cellsOf(pieces, 0);
+        if (blackKing >= 0 && redKing < 0) return cellsOf(pieces, 1);
+        if (redKing < 0 || blackKing < 0) return null;      // 双方都没王（空盘）→ 不判
+        if (isAttacked(pieces, redKing / COLS, redKing % COLS, 0)) return new int[]{redKing};
+        if (isAttacked(pieces, blackKing / COLS, blackKing % COLS, 1)) return new int[]{blackKing};
+        return null;
+    }
+
+    /** 某一方帅/将所在格；不在返回 -1（盖着的暗棋也算在，隐藏位不影响棋子类型） */
+    private int findKing(int[] p, int s) {
+        for (int i = 0; i < p.length; i++) {
+            if (p[i] != 0 && side(p[i]) == s && type(p[i]) == 1) return i;
+        }
+        return -1;
+    }
+
+    /** 某一方所有棋子所在格 */
+    private int[] cellsOf(int[] p, int s) {
+        int n = 0;
+        for (int i = 0; i < p.length; i++) if (p[i] != 0 && side(p[i]) == s) n++;
+        int[] out = new int[n];
+        int k = 0;
+        for (int i = 0; i < p.length; i++) if (p[i] != 0 && side(p[i]) == s) out[k++] = i;
+        return out;
+    }
+
+    /** (row, col) 是否正被 oppSide 的攻击覆盖 */
+    private boolean isAttacked(int[] p, int row, int col, int oppSide) {
+        for (int r = 0; r < ROWS; r++) {
+            for (int c = 0; c < COLS; c++) {
+                int v = p[idx(r, c)];
+                if (v == 0 || isHidden(v) || side(v) == oppSide) continue;
+                if (attacks(p, r, c, row, col)) return true;
+            }
+        }
+        return false;
+    }
+
+    /** (r,c) 上的棋子按象棋走法能不能吃到 (row,col)：只看攻击路线，忽略河界/九宫这类实际限制 */
+    private boolean attacks(int[] p, int r, int c, int row, int col) {
+        int piece = p[idx(r, c)];
+        if (piece == 0 || isHidden(piece)) return false;
+        int dr = row - r, dc = col - c;
+        switch (type(piece)) {
+            case 5 -> {                                            // 车：直线，中间无子
+                if (dr != 0 && dc != 0) return false;
+                return countBetween(p, r, c, row, col) == 0;
+            }
+            case 6 -> {                                            // 炮：直线，中间恰好一个炮架
+                if (dr != 0 && dc != 0) return false;
+                return countBetween(p, r, c, row, col) == 1;
+            }
+            case 4 -> {                                            // 马：日字，别腿
+                if (Math.abs(dr) == 2 && Math.abs(dc) == 1) return p[idx(r + dr / 2, c)] == 0;
+                if (Math.abs(dr) == 1 && Math.abs(dc) == 2) return p[idx(r, c + dc / 2)] == 0;
+                return false;
+            }
+            case 1 -> {                                            // 帅/将：一步正交，或同列对脸
+                if (Math.abs(dr) + Math.abs(dc) == 1) return true;
+                return dc == 0 && dr != 0 && countBetween(p, r, c, row, col) == 0;
+            }
+            case 2 -> {                                            // 仕/士：斜一步
+                return Math.abs(dr) == 1 && Math.abs(dc) == 1;
+            }
+            case 3 -> {                                            // 相/象：田字，塞象眼
+                if (Math.abs(dr) != 2 || Math.abs(dc) != 2) return false;
+                return p[idx(r + dr / 2, c + dc / 2)] == 0;
+            }
+            case 7 -> {                                            // 兵/卒：向前一步，过河后还能横走
+                int forward = side(piece) == 0 ? 1 : -1;           // 红在下方，往上走
+                if (dr == forward && dc == 0) return true;
+                if (dc == 0) return false;
+                boolean crossed = side(piece) == 0 ? r >= 5 : r <= 4;
+                return crossed && dr == 0 && Math.abs(dc) == 1;
+            }
+            default -> {
+                return false;
+            }
+        }
+    }
+
+    /** 两点之间（不含端点）有几颗棋子 —— 车 / 炮 / 对脸判定用 */
+    private int countBetween(int[] p, int r1, int c1, int r2, int c2) {
+        int dr = Integer.signum(r2 - r1), dc = Integer.signum(c2 - c1);
+        int n = 0;
+        for (int r = r1 + dr, c = c1 + dc; r != r2 || c != c2; r += dr, c += dc) {
+            if (p[idx(r, c)] != 0) n++;
+        }
+        return n;
+    }
+
+    /** 有胜利效果 → 界面上给一个开关（默认开，可关掉） */
+    @Override public boolean winToggleable() { return true; }
+
     public static int pack(int side, int type) { return (side << 3) | type; }
     public static int type(int piece) { return piece & 7; }
 }
